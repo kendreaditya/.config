@@ -1,0 +1,73 @@
+# === Session defaults ===
+# reset border color in default mode
+:: default : yabai -m config active_window_border_color 0xE032CD32
+
+# kickstart yabai 
+hyper - y : launchctl kickstart -k "gui/${UID}/homebrew.mxcl.yabai"
+
+# sleep
+alt - l : osascript -e 'tell application "System Events" to sleep'
+
+
+# === Resize Mode ===
+# Set resize border color 
+:: resize @ : yabai -m config active_window_border_color 0xFFFF00FF
+# toggle resize mode 
+resize < hyper - r ; default
+default < hyper - r ; resize
+# resize commands
+resize < left : yabai -m window --resize left:-50:0; \
+                  yabai -m window --resize right:-50:0
+resize < down : yabai -m window --resize bottom:0:50; \
+                  yabai -m window --resize top:0:50
+resize < up   : yabai -m window --resize top:0:-50; \
+                  yabai -m window --resize bottom:0:-50
+resize < right : yabai -m window --resize right:50:0; \
+                  yabai -m window --resize left:50:0
+
+# === Navigation ===
+# window focus
+cmd - h : yabai -m window --focus west
+cmd - j : yabai -m window --focus south
+cmd - k : yabai -m window --focus north
+cmd - l : yabai -m window --focus east
+
+cmd - left : yabai -m window --focus west
+cmd - down : yabai -m window --focus south
+cmd - up : yabai -m window --focus north
+cmd - right : yabai -m window --focus east
+
+alt - l: yabai -m display --focus east
+alt - h: yabai -m display --focus west
+
+
+# === Modification === 
+# Move window relatively
+cmd + shift - h : yabai -m window --warp west
+cmd + shift - j : yabai -m window --warp south
+cmd + shift - k : yabai -m window --warp north
+cmd + shift - l : yabai -m window --warp east
+
+cmd + shift - left : yabai -m window --warp west
+cmd + shift - down : yabai -m window --warp south
+cmd + shift - up : yabai -m window --warp north
+cmd + shift - right : yabai -m window --warp east
+
+# Move focus + window to space
+
+# Equalize size of windows
+hyper - e : yabai -m space --balance
+
+# Set insertion point for focused container
+shift + lctrl + alt - h : yabai -m window --insert west
+shift + lctrl + alt - j : yabai -m window --insert south
+shift + lctrl + alt - k : yabai -m window --insert north
+shift + lctrl + alt - l : yabai -m window --insert east
+
+# Float / Unfloat window
+cmd + alt - space : \
+    yabai -m window --toggle float; \
+    yabai -m window --toggle border
+
+# Make window native fullscreen
+cmd + shift - f         : yabai -m window --toggle zoom-fullscreen

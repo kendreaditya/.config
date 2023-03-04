@@ -1,6 +1,0 @@
-{
-    "python.jediEnabled":true,
-    "python.pythonPath": "python3",
-    "python.linting.pylintEnabled": true,
-    "python.linting.enabled": true
-}
