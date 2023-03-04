@@ -61,10 +61,6 @@ nnoremap <leader>bc :bd<CR>
 
 nnoremap <leader>e :Explore<CR>
 
-if !empty(glob("~/miniconda3/bin/python"))
-    let g:python3_host_prog = "~/miniconda3/bin/python"
-endif
-
 if !empty(glob("~/.config/nvim/plug.vim"))
     source $HOME/.config/nvim/plug.vim
 endif
