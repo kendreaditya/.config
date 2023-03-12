@@ -1,5 +1,6 @@
-# === Tiling setting ===
+yabai -m space --create
 
+# === Tiling setting ===
 yabai -m config layout                      bsp
 
 yabai -m config top_padding                 10
@@ -16,8 +17,6 @@ yabai -m config mouse_action1 move
 yabai -m config mouse_action2 resize
 
 yabai -m config window_topmost              off
-yabai -m config window_opacity              off
-yabai -m config window_shadow               float
 
 yabai -m config window_border               on
 yabai -m config active_window_border_color  0xE032CD32 
