@@ -34,8 +34,15 @@ cmd - j : yabai -m window --focus south
 cmd - k : yabai -m window --focus north
 cmd - l : yabai -m window --focus east
 
-alt - l: yabai -m display --focus east
-alt - h: yabai -m display --focus west
+# Move window to different desktop 
+cmd + shift - left : yabai -m window --display  west
+cmd + shift - down : yabai -m window --display south
+cmd + shift - up : yabai -m window --display north
+cmd + shift - right : yabai -m window --display east
+
+ctrl + cmd - 1  : yabai -m window --display 1; yabai -m display --focus 1
+ctrl + cmd - 2  : yabai -m window --display 2; yabai -m display --focus 2
+ctrl + cmd - 3  : yabai -m window --display 3; yabai -m display --focus 3
 
 
 # === Modification === 
