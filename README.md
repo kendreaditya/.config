@@ -7,7 +7,7 @@
 - vscode: VSCode setting
 - yabai (macos): Tilling window managers
 
-# Package Installer
+# 🚀 Package Installer
 
 This script is a package installer that automatically installs common development packages based on the operating system you are using. It simplifies the installation process by providing a centralized script that handles the installation of various packages.
 
