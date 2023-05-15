@@ -13,7 +13,7 @@
     "nodejs": {
       "windows": "winget install OpenJS.NodeJS",
       "darwin": "brew install node",
-      "linux": "sudo snap install node --classic"
+      "linux": "sudo apt install nodejs"
     },
     "python": {
       "windows": "winget install Python.Python.3.10",
