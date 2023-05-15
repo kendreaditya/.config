@@ -12,7 +12,7 @@
     },
     "nodejs": {
       "windows": "winget install OpenJS.NodeJS",
-      "darwin": "brew install node",
+      "darwin": "if command -v node &>/dev/null; then echo \"Node.js is installed.\" ; brew install node fi",
       "linux": "sudo apt install nodejs"
     },
     "python": {
@@ -54,7 +54,7 @@
       "ubuntu": "wsl --install -d Ubuntu"
     },
     "darwin": {
-      "brew": "/bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"",
+      "brew": "if command -v brew &>/dev/null; brew update; else echo /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\" fi",
       "tmux": "brew install tmux"
     },
     "linux": {
