@@ -36,9 +36,9 @@
       "linux": "sudo snap install gh"
     },
     "neovim": {
-      "windows": "winget install Neovim.Neovim",
-      "darwin": "brew install neovim",
-      "linux": "sudo apt install neovim -y"
+      "windows": "winget install Neovim.Neovim && iwr -useb https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim |` ni $HOME/vimfiles/autoload/plug.vim -Force",
+      "darwin": "brew install neovim && curl -fLo ~/.vim/autoload/plug.vim --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim",
+      "linux": "sudo apt install neovim -y && curl -fLo ~/.vim/autoload/plug.vim --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim"
     },
     "zsh": {
       "windows": "winget install JanDeDobbeleer.OhMyPosh -s winget",
