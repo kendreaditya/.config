@@ -1,5 +1,19 @@
 " Neovim Plugins (Plug)
+" https://github.com/junegunn/vim-plug
+" Specify a directory for plugins
 call plug#begin('~/.vim/plugged')
+
+Plug 'lervag/vimtex'
+    let g:tex_flavor='latex'
+    let g:vimtex_view_method='zathura'
+    let g:vimtex_quickfix_mode=0
+    " these two lines are for a separate plugin I use: https://github.com/KeitaNakamura/tex-conceal.vim
+    set conceallevel=1
+    let g:tex_conceal='abdmg'
+
+" Initialize plugin system
+Plug 'nvim-lua/plenary.nvim'
+Plug 'nvim-telescope/telescope.nvim', { 'tag': '0.1.5' }
 Plug 'vim-airline/vim-airline'
 Plug 'tweekmonster/gofmt.vim'
 Plug 'mbbill/undotree'
