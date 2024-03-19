@@ -28,6 +28,7 @@ Plug 'flazz/vim-colorschemes'
 Plug 'tomasr/molokai'
 Plug 'chriskempson/base16-vim'
 Plug 'vimwiki/vimwiki'
+Plug 'ThePrimeagen/vim-be-good'
 
 " note taking
 Plug 'xolox/vim-notes'
