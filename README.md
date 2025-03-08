@@ -48,3 +48,13 @@ This script is a package installer that automatically installs common developmen
 ## Contributing
 
 Contributions are welcome! If you have any suggestions, bug reports, or feature requests, please open an issue or submit a pull request on the GitHub repository.
+
+## Setup Instructions
+ - alttab settings
+ - raycast settings
+ - neovim plug install
+ - chrome
+   - per as perpleixty search
+ - loginto todoist + quick capture shortcut
+
+ - vscode settings
