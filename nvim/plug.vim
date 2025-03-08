@@ -29,6 +29,7 @@ Plug 'tomasr/molokai'
 Plug 'chriskempson/base16-vim'
 Plug 'vimwiki/vimwiki'
 Plug 'ThePrimeagen/vim-be-good'
+Plug 'darfink/vim-plist'
 
 " note taking
 Plug 'xolox/vim-notes'
