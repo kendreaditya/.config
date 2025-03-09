@@ -1,0 +1,30 @@
+[
+  {
+    "key": "ctrl+j",
+    "command": "workbench.action.focusActiveEditorGroup",
+    "when": "!terminalFocus"
+  },
+  {
+    "key": "shift+enter",
+    "command": "-python.execSelectionInTerminal",
+    "when": "editorTextFocus && !findInputFocussed && !jupyter.ownsSelection && !notebookEditorFocused && !replaceInputFocussed && editorLangId == 'python'"
+  },
+  {
+    "key": "cmd+j",
+    "command": "jupyter.runcurrentcelladvance",
+    "when": "editorTextFocus && isWorkspaceTrusted && jupyter.hascodecells && !editorHasSelection && !notebookEditorFocused"
+  },
+  {
+    "key": "shift+enter",
+    "command": "-jupyter.runcurrentcelladvance",
+    "when": "editorTextFocus && isWorkspaceTrusted && jupyter.hascodecells && !editorHasSelection && !notebookEditorFocused"
+  },
+  {
+    "key": "cmd+h",
+    "command": "workbench.action.togglePanel"
+  },
+  {
+    "key": "cmd+j",
+    "command": "-workbench.action.togglePanel"
+  },
+]
