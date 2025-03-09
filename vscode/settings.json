@@ -1,174 +1,205 @@
 {
-    "workbench.iconTheme": "material-icon-theme",
-    "explorer.confirmDelete": false,
-    "emmet.includeLanguages": {
-        "javascript": "javascriptreact"
+  "workbench.iconTheme": "material-icon-theme",
+  "explorer.confirmDelete": false,
+  "emmet.includeLanguages": {
+    "javascript": "javascriptreact"
+  },
+  "editor.minimap.enabled": false,
+  "vim.leader": "<space>",
+  "vim.insertModeKeyBindings": [
+    {
+      "before": ["j", "k"],
+      "after": ["<Esc>"]
+    }
+  ],
+  "vim.visualModeKeyBindings": [
+    {
+      "before": [">"],
+      "after": [">", "g", "v"]
     },
-    "editor.minimap.enabled": false,
-    "vim.leader": "<space>",
-    "vim.insertModeKeyBindings": [
-        {
-            "before": [
-                "j",
-                "k"
-            ],
-            "after": [
-                "<Esc>"
-            ]
-        }
-    ],
-    "vim.handleKeys": {
-        "<C-c>": false
+    {
+      "before": ["<"],
+      "after": ["<", "g", "v"]
+    }
+  ],
+  "vim.handleKeys": {
+    "<C-c>": false
+  },
+  "vim.normalModeKeyBindingsNonRecursive": [
+    {
+      "before": ["<S-j>"],
+      "commands": ["cursorPageDown"]
     },
-    "vim.normalModeKeyBindingsNonRecursive": [
-        {
-            "before": [
-                "<leader>",
-                "s"
-            ],
-            "commands": [
-                ":vsp"
-            ]
-        },
-        {
-            "before": [
-                "<leader>",
-                "l"
-            ],
-            "after": [
-                "<C-w>",
-                "l"
-            ]
-        },
-        {
-            "before": [
-                "<leader>",
-                "h"
-            ],
-            "after": [
-                "<C-w>",
-                "h"
-            ]
-        },
-        {
-            "before": [
-                "<leader>",
-                "<S-h>"
-            ],
-            "commands": [
-                "workbench.action.moveEditorToNextGroup"
-            ]
-        },
-        {
-            "before": [
-                "<leader>",
-                "<S-l>"
-            ],
-            "after": [
-                "workbench.action.moveEditorToPreviousGroup"
-            ]
-        },
-        {
-            "before": [
-                "<leader>",
-                "d"
-            ],
-            "commands": [
-                "editor.action.revealDefinition"
-            ]
-        },
-        {
-            "before": [
-                "<leader>",
-                "g"
-            ],
-            "commands": [
-                "editor.action.goToTypeDefinition"
-            ],
-        },
-        {
-            "before": [
-                "<leader>",
-                "t"
-            ],
-            "commands": [
-                "workbench.action.terminal.focusNext",
-                "workbench.action.toggleMaximizedPanel"
-            ],
-            "when": [
-                "!terminalFocus"
-            ]
-        },
-        // {
-        // "before": ["d"],
-        // "after": ["\"", "_", "d"]
-        // },
-        // {
-        // "before": ["D"],
-        // "after": ["\"", "_", "D"]
-        // },
-        // {
-        // "before": ["d", "d"],
-        // "after": ["\"", "_", "d", "d"]
-        // }
-    ],
-    "editor.formatOnPaste": true,
+    {
+      "before": ["<S-k>"],
+      "commands": ["cursorPageUp"]
+    },
+    {
+      "before": ["<leader>", "b"],
+      "commands": ["workbench.action.toggleSidebarVisibility"]
+    },
+    {
+      "before": ["<leader>", "w"],
+      "commands": ["workbench.action.files.save"]
+    }, 
+    {
+      "before": ["<leader>", "f"],
+      "commands": ["revealInExplorer"]
+    },
+    {
+      "before": ["<leader>", "e"],
+      "commands": ["workbench.action.toggleSidebarVisibility"]
+    },
+    {
+      "before": ["<leader>", "s"],
+      "commands": [":vsp"]
+    },
+    {
+      "before": ["<leader>", "v"],
+      "commands": [":sp"]
+    },
+    {
+      "before": ["<leader>", "<S-s>"],
+      "commands": [":sp"]
+    },
+    {
+      "before": ["<leader>", "l"],
+      "after": ["<C-w>", "l"]
+    },
+    {
+      "before": ["<leader>", "h"],
+      "after": ["<C-w>", "h"]
+    },
+    {
+      "before": ["<leader>", "<S-h>"],
+      "commands": ["workbench.action.moveEditorToNextGroup"]
+    },
+    {
+      "before": ["<leader>", "<S-l>"],
+      "after": ["workbench.action.moveEditorToPreviousGroup"]
+    },
+    {
+      "before": ["<leader>", "d"],
+      "commands": ["editor.action.revealDefinition"]
+    },
+    {
+      "before": ["<leader>", "g"],
+      "commands": ["editor.action.goToTypeDefinition"]
+    },
+    {
+      "before": ["<leader>", "t"],
+      "commands": [
+        "workbench.action.terminal.focusNext",
+        // "workbench.action.toggleMaximizedPanel"
+      ],
+      "when": ["!terminalFocus"]
+    },
+    {
+      "before": ["<tab>"],
+      "commands": ["workbench.action.nextEditor"]
+    },
+    {
+      "before": ["<S-tab>"],
+      "commands": ["workbench.action.previousEditor"]
+    }
+  ],
+  "editor.formatOnPaste": true,
+  "python.condaPath": "C:\\ProgramData\\Miniconda3\\python.exe",
+  "[dart]": {
     "editor.formatOnSave": true,
-    "python.dataScience.alwaysTrustNotebooks": true,
-    "python.condaPath": "C:\\ProgramData\\Miniconda3\\python.exe",
-    "python.insidersChannel": "off",
-    "[dart]": {
-        "editor.formatOnSave": true,
-        "editor.formatOnType": true,
-        "editor.rulers": [
-            80
-        ],
-        "editor.selectionHighlight": false,
-        "editor.suggest.snippetsPreventQuickSuggestions": false,
-        "editor.suggestSelection": "first",
-        "editor.tabCompletion": "onlySnippets",
-        "editor.wordBasedSuggestions": false
-    },
+    "editor.formatOnType": true,
+    "editor.rulers": [80],
+    "editor.selectionHighlight": false,
+    "editor.suggest.snippetsPreventQuickSuggestions": false,
     "editor.suggestSelection": "first",
-    "vsintellicode.modify.editor.suggestSelection": "automaticallyOverrodeDefaultValue",
-    "workbench.editorAssociations": {
-        "*.ipynb": "jupyter-notebook"
+    "editor.tabCompletion": "onlySnippets",
+    "editor.wordBasedSuggestions": "off"
+  },
+  "editor.suggestSelection": "first",
+  "vsintellicode.modify.editor.suggestSelection": "automaticallyOverrodeDefaultValue",
+  "workbench.editorAssociations": {
+    "*.ipynb": "jupyter-notebook"
+  },
+  "notebook.cellToolbarLocation": {
+    "default": "right",
+    "jupyter-notebook": "left"
+  },
+  "editor.inlineSuggest.enabled": true,
+  "terminal.integrated.profiles.windows": {
+    "PowerShell": {
+      "source": "PowerShell",
+      "icon": "terminal-powershell"
     },
-    "notebook.cellToolbarLocation": {
-        "default": "right",
-        "jupyter-notebook": "left"
+    "Command Prompt": {
+      "path": [
+        "${env:windir}\\Sysnative\\cmd.exe",
+        "${env:windir}\\System32\\cmd.exe"
+      ],
+      "args": [],
+      "icon": "terminal-cmd"
     },
-    "editor.inlineSuggest.enabled": true,
-    "terminal.integrated.profiles.windows": {
-        "PowerShell": {
-            "source": "PowerShell",
-            "icon": "terminal-powershell"
-        },
-        "Command Prompt": {
-            "path": [
-                "${env:windir}\\Sysnative\\cmd.exe",
-                "${env:windir}\\System32\\cmd.exe"
-            ],
-            "args": [],
-            "icon": "terminal-cmd"
-        },
-        "Git Bash": {
-            "source": "Git Bash"
-        },
-        "PowerShell7": {
-            "path": "C:\\Program Files\\PowerShell\\7\\pwsh.exe"
-        },
-        "C:\\Program Files\\PowerShell\\7\\pwsh.exe (migrated)": {
-            "path": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
-            "args": []
-        }
+    "Git Bash": {
+      "source": "Git Bash"
     },
-    "C_Cpp.updateChannel": "Insiders",
-    "github.copilot.enable": {
-        "*": true,
-        "yaml": false,
-        "plaintext": false,
-        "markdown": false,
-        "cpp": false
+    "PowerShell7": {
+      "path": "C:\\Program Files\\PowerShell\\7\\pwsh.exe"
     },
+    "C:\\Program Files\\PowerShell\\7\\pwsh.exe (migrated)": {
+      "path": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+      "args": []
+    }
+  },
+  "github.copilot.enable": {
+    "*": true,
+    "plaintext": true,
+    "markdown": true,
+    "scminput": false,
+    "yaml": true,
+    "cpp": true
+  },
+  "security.workspace.trust.untrustedFiles": "open",
+  "jupyter.askForKernelRestart": false,
+  "notebook.output.textLineLimit": 300,
+  "python.languageServer": "Pylance",
+  "editor.accessibilitySupport": "off",
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.python"
+  },
+  "js/ts.implicitProjectConfig.experimentalDecorators": true,
+  "javascript.updateImportsOnFileMove.enabled": "always",
+  "grammarly.files.include": [
+    "**/readme.md",
+    "**/README.md",
+    "**/*.txt",
+    "*.json"
+  ],
+  "jupyter.interactiveWindow.creationMode": "perFile",
+  "typescript.updateImportsOnFileMove.enabled": "always",
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "explorer.confirmDragAndDrop": false,
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "settingsSync.ignoredExtensions": [
+    "mshr-h.veriloghdl"
+  ],
+  "notebook.output.wordWrap": true,
+  "workbench.sideBar.location": "right",
+  "editor.glyphMargin": true,
+  "editor.lineNumbers": "relative",
+  "editor.cursorSurroundingLines": 100,
+  "workbench.colorTheme": "Visual Studio 2017 Dark - C++",
+  "python.defaultInterpreterPath": "/opt/homebrew/bin/python3.10",
+  "github.copilot.editor.enableAutoCompletions": true,
+  "[html]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  }
 }
