@@ -2,8 +2,7 @@
 # setup-macos.sh
 
 # Script description: Setup script for macOS development environment
-# Author: Your Name
-# Date: $(date +%Y-%m-%d)
+# Author: Aditya Kendre (aditya@semant.co)
 
 # Check if ZDOTDIR is set in .zshenv
 echo "Checking zsh configuration..."
@@ -103,6 +102,10 @@ defaults write com.apple.finder ShowPathbar -bool true
 defaults write NSGlobalDomain InitialKeyRepeat -int 15
 defaults write NSGlobalDomain KeyRepeat -int 2
 defaults write NSGlobalDomain ApplePressAndHoldEnabled -bool true
+
+# Disables "Displays have separate Spaces"
+defaults write com.apple.spaces spans-displays -bool false
+
 
 # Enable TouchID for sudo
 if ! grep -q "pam_tid.so" /etc/pam.d/sudo; then
