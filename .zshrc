@@ -108,3 +108,6 @@ source $ZSH/oh-my-zsh.sh
 
 # Alias for URL launcher
 alias url="$HOME/.config/scripts/url-launcher.sh"
+
+# Default Editor
+export EDITOR=nvim
