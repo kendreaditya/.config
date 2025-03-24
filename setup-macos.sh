@@ -84,6 +84,11 @@ echo "Configuring macOS settings..."
 # Disable automatic spelling correction
 defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
 
+# Menu Bar Settings
+defaults write com.apple.controlcenter "NSStatusItem Visible Sound" -int 1
+defaults write com.apple.controlcenter "NSStatusItem Visible Bluetooth" -int 1
+defaults write com.apple.controlcenter "NSStatusItem Visible NowPlaying" -int 1
+
 # Dock settings
 defaults write com.apple.dock autohide -bool true
 defaults write com.apple.dock autohide-delay -float 0
@@ -101,7 +106,7 @@ defaults write com.apple.finder ShowPathbar -bool true
 # Keyboard settings
 defaults write NSGlobalDomain InitialKeyRepeat -int 15
 defaults write NSGlobalDomain KeyRepeat -int 2
-defaults write NSGlobalDomain ApplePressAndHoldEnabled -bool true
+defaults write -g ApplePressAndHoldEnabled -bool false
 
 # Disables "Displays have separate Spaces"
 defaults write com.apple.spaces spans-displays -bool false
