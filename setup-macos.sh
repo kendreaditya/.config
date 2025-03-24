@@ -96,6 +96,7 @@ defaults write com.apple.dock autohide-time-modifier -float 0.5
 defaults write com.apple.dock orientation -string "bottom"
 defaults write com.apple.dock tilesize -int 36
 defaults write com.apple.dock mru-spaces -bool false
+defaults write com.apple.dock persistent-apps -array
 
 # Finder settings
 defaults write com.apple.finder AppleShowAllExtensions -bool true
