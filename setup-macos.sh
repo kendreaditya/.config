@@ -67,6 +67,8 @@ brew install --cask visual-studio-code
 brew install --cask google-chrome
 brew install --cask warp
 brew install --cask ghostty
+brew install --cask logseq
+brew install --cask obsidian 
 
 # Install oh-my-zsh
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
