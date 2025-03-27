@@ -69,6 +69,7 @@ brew install --cask warp
 brew install --cask ghostty
 brew install --cask logseq
 brew install --cask obsidian 
+brew install --cask postman
 
 # Install oh-my-zsh
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
