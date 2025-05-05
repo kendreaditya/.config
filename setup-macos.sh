@@ -48,6 +48,7 @@ brew install neofetch
 brew install node
 brew install git
 brew install zsh
+brew install rg
 
 # Install applications
 brew install --cask raycast
