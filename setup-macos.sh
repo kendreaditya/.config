@@ -49,6 +49,9 @@ brew install node
 brew install git
 brew install zsh
 brew install rg
+brew install ocrmypdf
+brew install tesseract
+brew install graphviz
 
 # Install applications
 brew install --cask raycast
