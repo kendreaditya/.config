@@ -52,6 +52,7 @@ brew install rg
 brew install ocrmypdf
 brew install tesseract
 brew install graphviz
+brew install fswatch
 
 # Install applications
 brew install --cask raycast
