@@ -53,6 +53,7 @@ brew install ocrmypdf
 brew install tesseract
 brew install graphviz
 brew install fswatch
+brew install nvm
 
 # Install applications
 brew install --cask raycast
