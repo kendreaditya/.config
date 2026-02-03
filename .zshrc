@@ -1,5 +1,5 @@
 # If you come from bash you might have to change your $PATH.
-# export PATH=$HOME/bin:$HOME/.local/bin:/usr/local/bin:$PATH
+export PATH=$HOME/bin:$HOME/.local/bin:/usr/local/bin:$PATH
 
 # Path to your Oh My Zsh installation.
 export ZSH="$HOME/.oh-my-zsh"
@@ -106,8 +106,14 @@ source $ZSH/oh-my-zsh.sh
 #
 #
 
+# Add custom scripts to PATH
+export PATH="$HOME/.config/scripts:$PATH"
+
 # Alias for URL launcher
 alias url="$HOME/.config/scripts/url-launcher.sh"
+
+# Alias for wishper.cpp transcribe
+alias transcribe='/Users/kendreaditya/workspace/whisper.cpp/transcribe.sh'
 
 # Default Editor
 export EDITOR=nvim
