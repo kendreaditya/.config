@@ -1,0 +1,257 @@
+#!/usr/bin/env python3
+"""
+yt-research - Stream YouTube channel transcripts to Markdown
+
+Usage: yt-research @channel_name
+       yt-research https://www.youtube.com/@channel_name
+
+Output: ./[channel_name].md in current directory
+"""
+import os
+import sys
+
+# Self-bootstrap: ensure we're running in the config venv
+VENV_DIR = os.path.expanduser("~/.config/config-venv")
+VENV_PYTHON = os.path.join(VENV_DIR, "bin", "python3")
+if os.path.exists(VENV_PYTHON) and not sys.prefix.startswith(VENV_DIR):
+    os.execv(VENV_PYTHON, [VENV_PYTHON] + sys.argv)
+
+import asyncio
+import argparse
+import re
+from pathlib import Path
+from typing import Optional
+import yt_dlp
+
+
+def get_channel_name(channel_input: str) -> str:
+    """Extract channel name from input (handle @name or URL)."""
+    if channel_input.startswith('@'):
+        return channel_input[1:]
+
+    match = re.search(r'@([^/\s]+)', channel_input)
+    if match:
+        return match.group(1)
+
+    match = re.search(r'/(?:c|channel)/([^/\s]+)', channel_input)
+    if match:
+        return match.group(1)
+
+    return channel_input.strip('/')
+
+
+def get_channel_url(channel_input: str) -> str:
+    """Convert input to full channel URL."""
+    if channel_input.startswith('http'):
+        return channel_input
+    if channel_input.startswith('@'):
+        return f'https://www.youtube.com/{channel_input}'
+    return f'https://www.youtube.com/@{channel_input}'
+
+
+def clean_vtt_content(vtt_text: str) -> str:
+    """Clean VTT format, return plain text."""
+    lines = []
+    seen_lines = set()
+
+    for line in vtt_text.split('\n'):
+        if line.startswith('WEBVTT') or '-->' in line:
+            continue
+        if line.startswith(('Kind:', 'Language:')):
+            continue
+        if not line.strip():
+            continue
+
+        line = re.sub(r'<[\d:.]+>', '', line)
+        line = re.sub(r'</?c[^>]*>', '', line)
+        line = re.sub(r'</?[a-z][^>]*>', '', line)
+        line = line.strip()
+
+        if line and line not in seen_lines:
+            lines.append(line)
+            seen_lines.add(line)
+
+    text = ' '.join(lines)
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'([.!?])\s+([A-Z])', r'\1\n\n\2', text)
+
+    return text.strip()
+
+
+def format_markdown_section(video_id: str, title: str, text: str) -> str:
+    """Format a video transcript as a Markdown section."""
+    return f"""## {title}
+**Video ID:** {video_id}
+**URL:** https://youtube.com/watch?v={video_id}
+
+{text}
+
+---
+
+"""
+
+
+class ProgressLogger:
+    def __init__(self):
+        self.processed = 0
+        self.skipped = 0
+        self.failed = 0
+
+    def log_processed(self, title: str):
+        self.processed += 1
+        print(f"  [{self.processed}] {title[:60]}...")
+
+    def log_skipped(self, title: str, reason: str):
+        self.skipped += 1
+        print(f"  [SKIP] {title[:40]}... ({reason})")
+
+    def log_failed(self, title: str, error: str):
+        self.failed += 1
+        print(f"  [FAIL] {title[:40]}... ({error})")
+
+    def summary(self):
+        print(f"\nSummary: {self.processed} processed, {self.skipped} skipped, {self.failed} failed")
+
+
+def fetch_video_subtitles(video_url: str, ydl_opts: dict) -> Optional[str]:
+    """Fetch subtitles for a single video, return VTT content or None."""
+    opts = {
+        **ydl_opts,
+        'writeautomaticsub': True,
+        'writesubtitles': True,
+        'subtitlesformat': 'vtt',
+        'subtitleslangs': ['en', 'en-US', 'en-GB', 'en-orig'],
+        'skip_download': True,
+    }
+
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        try:
+            info = ydl.extract_info(video_url, download=False)
+
+            subtitles = info.get('subtitles', {})
+            auto_subs = info.get('automatic_captions', {})
+            sub_dict = subtitles if subtitles else auto_subs
+
+            if not sub_dict:
+                return None
+
+            for lang in ['en', 'en-US', 'en-GB', 'en-orig']:
+                if lang in sub_dict:
+                    for fmt in sub_dict[lang]:
+                        if fmt.get('ext') == 'vtt':
+                            import urllib.request
+                            with urllib.request.urlopen(fmt['url']) as response:
+                                return response.read().decode('utf-8')
+
+            return None
+        except Exception:
+            return None
+
+
+async def process_channel(channel_input: str, output_path: Path, progress: ProgressLogger):
+    """Process all videos from a channel."""
+    channel_url = get_channel_url(channel_input)
+    channel_name = get_channel_name(channel_input)
+
+    print(f"Fetching video list from {channel_url}...")
+
+    ydl_opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'extract_flat': True,
+        'ignoreerrors': True,
+    }
+
+    videos = []
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        try:
+            result = ydl.extract_info(f"{channel_url}/videos", download=False)
+            if result and 'entries' in result:
+                videos = [e for e in result['entries'] if e]
+        except Exception as e:
+            print(f"Error fetching channel: {e}")
+            return
+
+    if not videos:
+        print("No videos found.")
+        return
+
+    print(f"Found {len(videos)} videos. Processing...")
+
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(f"# {channel_name}\n\n")
+
+    semaphore = asyncio.Semaphore(5)
+
+    async def process_video(video_info: dict):
+        async with semaphore:
+            video_id = video_info.get('id')
+            title = video_info.get('title', 'Unknown Title')
+
+            if not video_id:
+                progress.log_skipped(title, "no video ID")
+                return None
+
+            video_url = f"https://www.youtube.com/watch?v={video_id}"
+
+            loop = asyncio.get_event_loop()
+            try:
+                vtt_content = await loop.run_in_executor(
+                    None,
+                    fetch_video_subtitles,
+                    video_url,
+                    {'quiet': True, 'no_warnings': True}
+                )
+            except Exception as e:
+                progress.log_failed(title, str(e)[:30])
+                return None
+
+            if not vtt_content:
+                progress.log_skipped(title, "no subtitles")
+                return None
+
+            cleaned_text = clean_vtt_content(vtt_content)
+            if not cleaned_text:
+                progress.log_skipped(title, "empty transcript")
+                return None
+
+            section = format_markdown_section(video_id, title, cleaned_text)
+            progress.log_processed(title)
+            return section
+
+    tasks = [process_video(v) for v in videos]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    with open(output_path, 'a', encoding='utf-8') as f:
+        for result in results:
+            if isinstance(result, str) and result:
+                f.write(result)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Stream YouTube channel transcripts to Markdown',
+        usage='yt-research @channel_name'
+    )
+    parser.add_argument('channel', help='Channel name (@name) or URL')
+    parser.add_argument('-o', '--output', help='Output file path (default: ./[channel].md)')
+
+    args = parser.parse_args()
+
+    channel_name = get_channel_name(args.channel)
+    if args.output:
+        output_path = Path(args.output)
+    else:
+        output_path = Path.cwd() / f'{channel_name}.md'
+
+    print(f"Output: {output_path}")
+
+    progress = ProgressLogger()
+    asyncio.run(process_channel(args.channel, output_path, progress))
+
+    progress.summary()
+    print(f"\nDone! Output written to: {output_path}")
+
+
+if __name__ == '__main__':
+    main()
