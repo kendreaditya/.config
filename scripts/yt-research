@@ -19,6 +19,8 @@ if os.path.exists(VENV_PYTHON) and not sys.prefix.startswith(VENV_DIR):
 import asyncio
 import argparse
 import re
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Optional
 import yt_dlp
@@ -51,9 +53,8 @@ def get_channel_url(channel_input: str) -> str:
 
 
 def clean_vtt_content(vtt_text: str) -> str:
-    """Clean VTT format, return plain text."""
+    """Clean VTT format, return plain text with substring deduplication."""
     lines = []
-    seen_lines = set()
 
     for line in vtt_text.split('\n'):
         if line.startswith('WEBVTT') or '-->' in line:
@@ -68,9 +69,32 @@ def clean_vtt_content(vtt_text: str) -> str:
         line = re.sub(r'</?[a-z][^>]*>', '', line)
         line = line.strip()
 
-        if line and line not in seen_lines:
-            lines.append(line)
-            seen_lines.add(line)
+        if not line:
+            continue
+
+        # Hybrid deduplication: 'in' checks first, then overlap with min length
+        MIN_OVERLAP = 4  # Minimum overlap to avoid false positives
+        if lines:
+            last = lines[-1]
+
+            # First: try substring checks (catches most cases)
+            if line in last:
+                continue
+            if last in line:
+                lines[-1] = line
+                continue
+
+            # Second: try overlap merge with minimum length
+            min_len = min(len(last), len(line))
+            for overlap_len in range(min_len, MIN_OVERLAP - 1, -1):
+                if last[-overlap_len:] == line[:overlap_len]:
+                    lines[-1] = last + line[overlap_len:]
+                    break
+            else:
+                lines.append(line)
+            continue
+
+        lines.append(line)
 
     text = ' '.join(lines)
     text = re.sub(r'\s+', ' ', text)
@@ -145,8 +169,8 @@ class ProgressLogger:
         print(f"\nSummary: {self.processed} processed, {self.skipped} skipped, {self.failed} failed")
 
 
-def fetch_video_subtitles(video_url: str, ydl_opts: dict) -> Optional[str]:
-    """Fetch subtitles for a single video, return VTT content or None."""
+def fetch_video_subtitles(video_url: str, ydl_opts: dict) -> tuple[Optional[str], Optional[str]]:
+    """Fetch subtitles for a single video. Returns (content, error_reason)."""
     opts = {
         **ydl_opts,
         'writeautomaticsub': True,
@@ -165,19 +189,28 @@ def fetch_video_subtitles(video_url: str, ydl_opts: dict) -> Optional[str]:
             sub_dict = subtitles if subtitles else auto_subs
 
             if not sub_dict:
-                return None
+                return None, "no subtitles"
 
             for lang in ['en', 'en-US', 'en-GB', 'en-orig']:
                 if lang in sub_dict:
                     for fmt in sub_dict[lang]:
                         if fmt.get('ext') == 'vtt':
-                            import urllib.request
-                            with urllib.request.urlopen(fmt['url']) as response:
-                                return response.read().decode('utf-8')
+                            try:
+                                with urllib.request.urlopen(fmt['url'], timeout=30) as response:
+                                    return response.read().decode('utf-8'), None
+                            except urllib.error.HTTPError as e:
+                                if e.code == 429:
+                                    return None, "rate limited"
+                                return None, f"HTTP {e.code}"
+                            except Exception as e:
+                                return None, str(e)[:20]
 
-            return None
-        except Exception:
-            return None
+            return None, "no English subs"
+        except Exception as e:
+            error_msg = str(e)[:30]
+            if "429" in error_msg:
+                return None, "rate limited"
+            return None, error_msg
 
 
 async def process_channel(channel_input: str, output_path: Path, progress: ProgressLogger):
@@ -237,7 +270,7 @@ async def process_channel(channel_input: str, output_path: Path, progress: Progr
 
             loop = asyncio.get_event_loop()
             try:
-                vtt_content = await loop.run_in_executor(
+                vtt_content, error_reason = await loop.run_in_executor(
                     None,
                     fetch_video_subtitles,
                     video_url,
@@ -248,7 +281,7 @@ async def process_channel(channel_input: str, output_path: Path, progress: Progr
                 return None
 
             if not vtt_content:
-                progress.log_skipped(title, "no subtitles")
+                progress.log_skipped(title, error_reason or "unknown error")
                 return None
 
             cleaned_text = clean_vtt_content(vtt_content)
