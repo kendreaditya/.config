@@ -86,6 +86,21 @@ else
   echo "Oh My Zsh is already installed, skipping..."
 fi
 
+# Create .config Python venv and install dependencies
+echo "Setting up .config Python venv..."
+python3 -m venv ~/.config/config-venv
+~/.config/config-venv/bin/pip install --upgrade pip
+~/.config/config-venv/bin/pip install -r ~/.config/requirements.txt
+
+# Symlink scripts to PATH
+mkdir -p ~/.local/bin
+for script in ~/.config/scripts/*; do
+  if [ -f "$script" ] && [ -x "$script" ]; then
+    scriptname=$(basename "$script")
+    ln -sf "$script" ~/.local/bin/"$scriptname"
+  fi
+done
+
 
 # Set system defaults
 echo "Configuring macOS settings..."
