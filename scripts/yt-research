@@ -22,6 +22,7 @@ import re
 from pathlib import Path
 from typing import Optional
 import yt_dlp
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 
 
 def get_channel_name(channel_input: str) -> str:
@@ -92,24 +93,55 @@ def format_markdown_section(video_id: str, title: str, text: str) -> str:
 
 
 class ProgressLogger:
-    def __init__(self):
+    def __init__(self, verbose: bool = False, total: int = 0):
+        self.verbose = verbose
         self.processed = 0
         self.skipped = 0
         self.failed = 0
+        self.total = total
+        self.progress = None
+        self.task_id = None
+
+    def start(self):
+        if not self.verbose and self.total > 0:
+            self.progress = Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TaskProgressColumn(),
+                TextColumn("[cyan]{task.completed}/{task.total}"),
+            )
+            self.progress.start()
+            self.task_id = self.progress.add_task("Processing videos", total=self.total)
+
+    def stop(self):
+        if self.progress:
+            self.progress.stop()
+
+    def _advance(self):
+        if self.progress and self.task_id is not None:
+            self.progress.advance(self.task_id)
 
     def log_processed(self, title: str):
         self.processed += 1
-        print(f"  [{self.processed}] {title[:60]}...")
+        self._advance()
+        if self.verbose:
+            print(f"  [{self.processed}] {title[:60]}...")
 
     def log_skipped(self, title: str, reason: str):
         self.skipped += 1
-        print(f"  [SKIP] {title[:40]}... ({reason})")
+        self._advance()
+        if self.verbose:
+            print(f"  [SKIP] {title[:40]}... ({reason})")
 
     def log_failed(self, title: str, error: str):
         self.failed += 1
-        print(f"  [FAIL] {title[:40]}... ({error})")
+        self._advance()
+        if self.verbose:
+            print(f"  [FAIL] {title[:40]}... ({error})")
 
     def summary(self):
+        self.stop()
         print(f"\nSummary: {self.processed} processed, {self.skipped} skipped, {self.failed} failed")
 
 
@@ -165,9 +197,14 @@ async def process_channel(channel_input: str, output_path: Path, progress: Progr
     videos = []
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
-            result = ydl.extract_info(f"{channel_url}/videos", download=False)
-            if result and 'entries' in result:
-                videos = [e for e in result['entries'] if e]
+            # Fetch from both /videos and /shorts tabs
+            for tab in ['/videos', '/shorts']:
+                try:
+                    result = ydl.extract_info(f"{channel_url}{tab}", download=False)
+                    if result and 'entries' in result:
+                        videos.extend([e for e in result['entries'] if e])
+                except Exception:
+                    pass  # Tab might not exist
         except Exception as e:
             print(f"Error fetching channel: {e}")
             return
@@ -177,6 +214,10 @@ async def process_channel(channel_input: str, output_path: Path, progress: Progr
         return
 
     print(f"Found {len(videos)} videos. Processing...")
+
+    # Set total and start progress bar
+    progress.total = len(videos)
+    progress.start()
 
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(f"# {channel_name}\n\n")
@@ -235,6 +276,7 @@ def main():
     )
     parser.add_argument('channel', help='Channel name (@name) or URL')
     parser.add_argument('-o', '--output', help='Output file path (default: ./[channel].md)')
+    parser.add_argument('-v', '--verbose', action='store_true', help='Show detailed progress for each video')
 
     args = parser.parse_args()
 
@@ -246,7 +288,7 @@ def main():
 
     print(f"Output: {output_path}")
 
-    progress = ProgressLogger()
+    progress = ProgressLogger(verbose=args.verbose)
     asyncio.run(process_channel(args.channel, output_path, progress))
 
     progress.summary()
