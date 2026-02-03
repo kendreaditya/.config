@@ -49,6 +49,18 @@ This script is a package installer that automatically installs common developmen
 
 Contributions are welcome! If you have any suggestions, bug reports, or feature requests, please open an issue or submit a pull request on the GitHub repository.
 
+## Custom CLI Scripts
+
+Located in `scripts/` - add to PATH: `export PATH="$HOME/.config/scripts:$PATH"`
+
+| Script | Description | Usage |
+|--------|-------------|-------|
+| `yt-research` | Download YouTube channel transcripts to Markdown | `yt-research @channel_name` |
+| `shortn` | Compress text files to fit token limits (TextRank) | `shortn input.md -t 8000` |
+| `url` | Create HTML redirect files | `url example.com` |
+
+See `skills.md` for full documentation.
+
 ## Setup Instructions
  - alttab settings
  - raycast settings
