@@ -55,18 +55,18 @@ Transcript text here...
 
 ---
 
-## ctx-compress
+## shortn
 
 LLM Context Compressor - compress large text/markdown files to fit within token limits using extractive summarization (no LLM required).
 
 ### Usage
 
 ```bash
-ctx-compress input.md -t 8000                    # → input.compressed.md
-ctx-compress input.md -t 32000 -o out.md         # Custom output file
-ctx-compress input.md -t 8000 --stdout           # Print to stdout
-ctx-compress input.md -t 8000 --no-parallel      # Disable parallelization
-cat input.md | ctx-compress -t 8000 --stdin --stdout  # Pipe mode
+shortn input.md -t 8000                    # → input.compressed.md
+shortn input.md -t 32000 -o out.md         # Custom output file
+shortn input.md -t 8000 --stdout           # Print to stdout
+shortn input.md -t 8000 --no-parallel      # Disable parallelization
+cat input.md | shortn -t 8000 --stdin --stdout  # Pipe mode
 ```
 
 ### Options
@@ -156,7 +156,7 @@ python3 -m venv ~/.config/config-venv
 
 ```bash
 chmod +x ~/.config/scripts/yt-research
-chmod +x ~/.config/scripts/ctx-compress
+chmod +x ~/.config/scripts/shortn
 chmod +x ~/.config/scripts/url-launcher.sh
 ```
 
