@@ -116,12 +116,28 @@ def format_markdown_section(video_id: str, title: str, text: str) -> str:
 """
 
 
+def get_existing_video_ids(output_path: Path) -> set[str]:
+    """Parse existing markdown file and extract already-processed video IDs."""
+    if not output_path.exists():
+        return set()
+
+    try:
+        content = output_path.read_text(encoding='utf-8')
+        # Find all lines with "**Video ID:** {id}"
+        video_ids = re.findall(r'\*\*Video ID:\*\* ([a-zA-Z0-9_-]+)', content)
+        return set(video_ids)
+    except Exception:
+        return set()
+
+
 class ProgressLogger:
     def __init__(self, verbose: bool = False, total: int = 0):
         self.verbose = verbose
         self.processed = 0
         self.skipped = 0
         self.failed = 0
+        self.rate_limited = 0
+        self.resumed = 0
         self.total = total
         self.progress = None
         self.task_id = None
@@ -146,27 +162,89 @@ class ProgressLogger:
         if self.progress and self.task_id is not None:
             self.progress.advance(self.task_id)
 
+    def _update_description(self, current_video: str = ""):
+        """Update progress bar with current stats and video."""
+        if self.progress and self.task_id is not None:
+            stats = []
+            if self.processed > 0:
+                stats.append(f"[green]{self.processed} processed[/green]")
+            if self.resumed > 0:
+                stats.append(f"[blue]{self.resumed} resumed[/blue]")
+            if self.skipped > 0:
+                stats.append(f"[yellow]{self.skipped} skipped[/yellow]")
+            if self.rate_limited > 0:
+                stats.append(f"[red]{self.rate_limited} rate limited[/red]")
+            if self.failed > 0:
+                stats.append(f"[red]{self.failed} failed[/red]")
+
+            stats_str = ", ".join(stats) if stats else "Starting..."
+
+            if current_video:
+                desc = f"{stats_str} | [cyan]Current:[/cyan] {current_video[:50]}..."
+            else:
+                desc = stats_str
+
+            self.progress.update(self.task_id, description=desc)
+
+    def set_current(self, title: str):
+        """Set the current video being processed (updates progress bar)."""
+        if not self.verbose:
+            self._update_description(title)
+        elif self.verbose:
+            print(f"  [PROCESSING] {title[:60]}...")
+
     def log_processed(self, title: str):
         self.processed += 1
         self._advance()
         if self.verbose:
-            print(f"  [{self.processed}] {title[:60]}...")
+            print(f"  [✓] {title[:60]}...")
+        else:
+            self._update_description()
 
     def log_skipped(self, title: str, reason: str):
         self.skipped += 1
         self._advance()
         if self.verbose:
             print(f"  [SKIP] {title[:40]}... ({reason})")
+        else:
+            self._update_description()
 
     def log_failed(self, title: str, error: str):
         self.failed += 1
         self._advance()
         if self.verbose:
             print(f"  [FAIL] {title[:40]}... ({error})")
+        else:
+            self._update_description()
+
+    def log_rate_limited(self, title: str):
+        self.rate_limited += 1
+        self._advance()
+        if self.verbose:
+            print(f"  [RATE LIMITED] {title[:40]}...")
+        else:
+            self._update_description()
+
+    def log_resumed(self, title: str):
+        self.resumed += 1
+        self._advance()
+        if self.verbose:
+            print(f"  [RESUMED] {title[:40]}... (already exists)")
+        else:
+            self._update_description()
 
     def summary(self):
         self.stop()
-        print(f"\nSummary: {self.processed} processed, {self.skipped} skipped, {self.failed} failed")
+        parts = [f"{self.processed} processed"]
+        if self.resumed > 0:
+            parts.append(f"{self.resumed} resumed")
+        if self.skipped > 0:
+            parts.append(f"{self.skipped} skipped")
+        if self.rate_limited > 0:
+            parts.append(f"{self.rate_limited} rate limited")
+        if self.failed > 0:
+            parts.append(f"{self.failed} failed")
+        print(f"\nSummary: {', '.join(parts)}")
 
 
 def fetch_video_subtitles(video_url: str, ydl_opts: dict) -> tuple[Optional[str], Optional[str]]:
@@ -218,6 +296,11 @@ async def process_channel(channel_input: str, output_path: Path, progress: Progr
     channel_url = get_channel_url(channel_input)
     channel_name = get_channel_name(channel_input)
 
+    # Check for existing video IDs (resume functionality)
+    existing_ids = get_existing_video_ids(output_path)
+    if existing_ids:
+        print(f"Found existing file with {len(existing_ids)} videos. Will resume...")
+
     print(f"Fetching video list from {channel_url}...")
 
     ydl_opts = {
@@ -252,8 +335,10 @@ async def process_channel(channel_input: str, output_path: Path, progress: Progr
     progress.total = len(videos)
     progress.start()
 
-    with open(output_path, 'w', encoding='utf-8') as f:
-        f.write(f"# {channel_name}\n\n")
+    # Only write header if this is a new file
+    if not existing_ids:
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(f"# {channel_name}\n\n")
 
     semaphore = asyncio.Semaphore(5)
 
@@ -265,6 +350,14 @@ async def process_channel(channel_input: str, output_path: Path, progress: Progr
             if not video_id:
                 progress.log_skipped(title, "no video ID")
                 return None
+
+            # Skip if already processed
+            if video_id in existing_ids:
+                progress.log_resumed(title)
+                return None
+
+            # Show current video being processed
+            progress.set_current(title)
 
             video_url = f"https://www.youtube.com/watch?v={video_id}"
 
@@ -281,7 +374,11 @@ async def process_channel(channel_input: str, output_path: Path, progress: Progr
                 return None
 
             if not vtt_content:
-                progress.log_skipped(title, error_reason or "unknown error")
+                # Check if it's a rate limit error
+                if error_reason == "rate limited":
+                    progress.log_rate_limited(title)
+                else:
+                    progress.log_skipped(title, error_reason or "unknown error")
                 return None
 
             cleaned_text = clean_vtt_content(vtt_content)
