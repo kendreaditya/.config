@@ -19,12 +19,16 @@ if os.path.exists(VENV_PYTHON) and not sys.prefix.startswith(VENV_DIR):
 import asyncio
 import argparse
 import re
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Optional
 import yt_dlp
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+from rich.progress import (
+    Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn,
+    TimeRemainingColumn, TimeElapsedColumn,
+)
 
 
 def get_channel_name(channel_input: str) -> str:
@@ -123,11 +127,62 @@ def get_existing_video_ids(output_path: Path) -> set[str]:
 
     try:
         content = output_path.read_text(encoding='utf-8')
-        # Find all lines with "**Video ID:** {id}"
         video_ids = re.findall(r'\*\*Video ID:\*\* ([a-zA-Z0-9_-]+)', content)
         return set(video_ids)
     except Exception:
         return set()
+
+
+class RateLimitMonitor:
+    """Track consecutive rate-limit failures and prompt user when threshold hit."""
+
+    def __init__(self, threshold: int = 3):
+        self.threshold = threshold
+        self._consecutive_failures = 0
+        self._abort = False
+        self._lock = asyncio.Lock()
+        self._gate = asyncio.Event()
+        self._gate.set()  # Start open
+
+    @property
+    def should_abort(self) -> bool:
+        return self._abort
+
+    async def record_success(self):
+        async with self._lock:
+            self._consecutive_failures = 0
+
+    async def record_rate_limit(self):
+        async with self._lock:
+            self._consecutive_failures += 1
+            if self._consecutive_failures >= self.threshold and not self._abort:
+                self._gate.clear()
+                await self._prompt_user()
+
+    async def _prompt_user(self):
+        print(f"\n⚠  {self._consecutive_failures} consecutive videos rate-limited.")
+        print("Options:")
+        print("  [w] Wait 60s and retry (default)")
+        print("  [a] Abort remaining videos")
+
+        loop = asyncio.get_event_loop()
+        answer = await loop.run_in_executor(None, lambda: input("Choice [w/a]: ").strip().lower())
+
+        if answer == 'a':
+            self._abort = True
+            self._gate.set()  # Unblock workers so they see abort flag
+            print("Aborting remaining videos.")
+        else:
+            wait_time = 60
+            print(f"Waiting {wait_time}s before resuming...")
+            await asyncio.sleep(wait_time)
+            self._consecutive_failures = 0
+            self._gate.set()
+            print("Resuming.")
+
+    async def wait_if_paused(self):
+        """Block until rate-limit pause is resolved."""
+        await self._gate.wait()
 
 
 class ProgressLogger:
@@ -150,6 +205,8 @@ class ProgressLogger:
                 BarColumn(),
                 TaskProgressColumn(),
                 TextColumn("[cyan]{task.completed}/{task.total}"),
+                TimeElapsedColumn(),
+                TimeRemainingColumn(),
             )
             self.progress.start()
             self.task_id = self.progress.add_task("Processing videos", total=self.total)
@@ -157,10 +214,6 @@ class ProgressLogger:
     def stop(self):
         if self.progress:
             self.progress.stop()
-
-    def _advance(self):
-        if self.progress and self.task_id is not None:
-            self.progress.advance(self.task_id)
 
     def _update_description(self, current_video: str = ""):
         """Update progress bar with current stats and video."""
@@ -192,6 +245,10 @@ class ProgressLogger:
             self._update_description(title)
         elif self.verbose:
             print(f"  [PROCESSING] {title[:60]}...")
+
+    def _advance(self):
+        if self.progress and self.task_id is not None:
+            self.progress.advance(self.task_id)
 
     def log_processed(self, title: str):
         self.processed += 1
@@ -247,8 +304,8 @@ class ProgressLogger:
         print(f"\nSummary: {', '.join(parts)}")
 
 
-def fetch_video_subtitles(video_url: str, ydl_opts: dict) -> tuple[Optional[str], Optional[str]]:
-    """Fetch subtitles for a single video. Returns (content, error_reason)."""
+def _try_fetch_subtitles(video_url: str, ydl_opts: dict) -> tuple[Optional[str], Optional[str]]:
+    """Single attempt to fetch subtitles. Returns (content, error_reason)."""
     opts = {
         **ydl_opts,
         'writeautomaticsub': True,
@@ -291,6 +348,18 @@ def fetch_video_subtitles(video_url: str, ydl_opts: dict) -> tuple[Optional[str]
             return None, error_msg
 
 
+def fetch_video_subtitles(video_url: str, ydl_opts: dict) -> tuple[Optional[str], Optional[str]]:
+    """Fetch subtitles with retry on 429 rate-limit errors (3 attempts, exponential backoff)."""
+    max_retries = 3
+    for attempt in range(max_retries):
+        content, error = _try_fetch_subtitles(video_url, ydl_opts)
+        if error == "rate limited" and attempt < max_retries - 1:
+            time.sleep(2 ** (attempt + 1))  # 2s, 4s
+            continue
+        return content, error
+    return None, "rate limited"
+
+
 async def process_channel(channel_input: str, output_path: Path, progress: ProgressLogger):
     """Process all videos from a channel."""
     channel_url = get_channel_url(channel_input)
@@ -329,31 +398,49 @@ async def process_channel(channel_input: str, output_path: Path, progress: Progr
         print("No videos found.")
         return
 
-    print(f"Found {len(videos)} videos. Processing...")
+    # Resume mode: filter out already-processed videos
+    resuming = len(existing_ids) > 0
+    if resuming:
+        original_count = len(videos)
+        videos = [v for v in videos if v.get('id') not in existing_ids]
+        skipped = original_count - len(videos)
+        print(f"Found {original_count} videos, skipping {skipped} already processed. Processing {len(videos)}...")
+    else:
+        print(f"Found {len(videos)} videos. Processing...")
+
+    if not videos:
+        print("All videos already processed.")
+        return
 
     # Set total and start progress bar
     progress.total = len(videos)
     progress.start()
 
     # Only write header if this is a new file
-    if not existing_ids:
+    if not resuming:
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(f"# {channel_name}\n\n")
 
+    rate_monitor = RateLimitMonitor(threshold=3)
     semaphore = asyncio.Semaphore(5)
 
     async def process_video(video_info: dict):
         async with semaphore:
+            if rate_monitor.should_abort:
+                progress.log_skipped(video_info.get('title', '?'), "aborted")
+                return None
+
+            await rate_monitor.wait_if_paused()
+
+            if rate_monitor.should_abort:
+                progress.log_skipped(video_info.get('title', '?'), "aborted")
+                return None
+
             video_id = video_info.get('id')
             title = video_info.get('title', 'Unknown Title')
 
             if not video_id:
                 progress.log_skipped(title, "no video ID")
-                return None
-
-            # Skip if already processed
-            if video_id in existing_ids:
-                progress.log_resumed(title)
                 return None
 
             # Show current video being processed
@@ -374,13 +461,15 @@ async def process_channel(channel_input: str, output_path: Path, progress: Progr
                 return None
 
             if not vtt_content:
-                # Check if it's a rate limit error
                 if error_reason == "rate limited":
+                    await rate_monitor.record_rate_limit()
                     progress.log_rate_limited(title)
                 else:
+                    await rate_monitor.record_success()
                     progress.log_skipped(title, error_reason or "unknown error")
                 return None
 
+            await rate_monitor.record_success()
             cleaned_text = clean_vtt_content(vtt_content)
             if not cleaned_text:
                 progress.log_skipped(title, "empty transcript")
