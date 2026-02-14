@@ -403,8 +403,8 @@ async def process_channel(channel_input: str, output_path: Path, progress: Progr
     if resuming:
         original_count = len(videos)
         videos = [v for v in videos if v.get('id') not in existing_ids]
-        skipped = original_count - len(videos)
-        print(f"Found {original_count} videos, skipping {skipped} already processed. Processing {len(videos)}...")
+        progress.resumed = original_count - len(videos)
+        print(f"Found {original_count} videos, skipping {progress.resumed} already processed. Processing {len(videos)}...")
     else:
         print(f"Found {len(videos)} videos. Processing...")
 
