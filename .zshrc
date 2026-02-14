@@ -112,11 +112,5 @@ source $ZSH/oh-my-zsh.sh
 # Add custom scripts to PATH
 export PATH="$HOME/.config/scripts:$PATH"
 
-# Alias for URL launcher
-alias url="$HOME/.config/scripts/url-launcher.sh"
-
-# Alias for wishper.cpp transcribe
-alias transcribe='/Users/kendreaditya/workspace/whisper.cpp/transcribe.sh'
-
 # Default Editor
 export EDITOR=nvim
