@@ -1,0 +1,306 @@
+#!/usr/bin/env python3
+"""
+tw-research - Download Twitter/X user tweets to Markdown
+
+Usage: tw-research @username
+       tw-research https://x.com/username
+
+Output: ./[username].md in current directory
+"""
+import os
+import sys
+
+# Self-bootstrap: ensure we're running in the config venv
+VENV_DIR = os.path.expanduser("~/.config/config-venv")
+VENV_PYTHON = os.path.join(VENV_DIR, "bin", "python3")
+if os.path.exists(VENV_PYTHON) and not sys.prefix.startswith(VENV_DIR):
+    os.execv(VENV_PYTHON, [VENV_PYTHON] + sys.argv)
+
+import asyncio
+import argparse
+import re
+from datetime import datetime
+from pathlib import Path
+from typing import Optional, AsyncGenerator
+
+from twscrape import API, gather
+from twscrape.models import Tweet
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+
+
+DEFAULT_DB_PATH = os.path.expanduser("~/.config/twscrape/accounts.db")
+
+
+def get_username(user_input: str) -> str:
+    """Extract username from input (handle @name or URL)."""
+    if user_input.startswith('@'):
+        return user_input[1:]
+
+    # Handle x.com and twitter.com URLs
+    match = re.search(r'(?:twitter\.com|x\.com)/([^/?\s]+)', user_input)
+    if match:
+        username = match.group(1)
+        # Skip special paths
+        if username not in ('i', 'intent', 'search', 'hashtag'):
+            return username
+
+    return user_input.strip('@/')
+
+
+async def check_accounts(db_path: str) -> bool:
+    """Check if twscrape has active accounts configured."""
+    if not os.path.exists(db_path):
+        return False
+
+    api = API(db_path)
+    accounts = await api.pool.accounts_info()
+    return any(acc.get("active", False) for acc in accounts)
+
+
+def print_setup_instructions():
+    """Print instructions for setting up twscrape accounts."""
+    print("""
+No active Twitter accounts configured.
+
+To add accounts, create accounts.txt with format:
+  username:password:email:email_password
+
+Then run:
+  twscrape add_accounts accounts.txt username:password:email:email_password
+  twscrape login_accounts
+
+Or add with cookies (recommended - avoids login issues):
+  username:password:email:email_password:cookies
+
+See: https://github.com/vladkens/twscrape
+""")
+
+
+def format_tweet_section(tweet: Tweet, username: str) -> str:
+    """Format a single tweet as a Markdown section."""
+    date_str = tweet.date.strftime("%Y-%m-%d %H:%M")
+    tweet_url = f"https://x.com/{username}/status/{tweet.id}"
+
+    # Build metadata line
+    stats = []
+    if tweet.likeCount:
+        stats.append(f"Likes: {tweet.likeCount}")
+    if tweet.retweetCount:
+        stats.append(f"Retweets: {tweet.retweetCount}")
+    if tweet.replyCount:
+        stats.append(f"Replies: {tweet.replyCount}")
+    stats_line = " | ".join(stats) if stats else ""
+
+    # Get tweet content
+    content = tweet.rawContent or ""
+
+    section = f"""## Tweet - {date_str}
+**ID:** {tweet.id}
+**URL:** {tweet_url}
+"""
+    if stats_line:
+        section += f"**{stats_line}**\n"
+
+    section += f"""
+{content}
+
+---
+
+"""
+    return section
+
+
+class ProgressLogger:
+    def __init__(self, verbose: bool = False, total: int = 0):
+        self.verbose = verbose
+        self.processed = 0
+        self.skipped = 0
+        self.total = total
+        self.progress = None
+        self.task_id = None
+
+    def start(self):
+        if not self.verbose and self.total > 0:
+            self.progress = Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TaskProgressColumn(),
+                TextColumn("[cyan]{task.completed}/{task.total}"),
+            )
+            self.progress.start()
+            self.task_id = self.progress.add_task("Fetching tweets", total=self.total)
+
+    def stop(self):
+        if self.progress:
+            self.progress.stop()
+
+    def update_total(self, total: int):
+        self.total = total
+        if self.progress and self.task_id is not None:
+            self.progress.update(self.task_id, total=total)
+
+    def _advance(self):
+        if self.progress and self.task_id is not None:
+            self.progress.advance(self.task_id)
+
+    def log_processed(self, tweet_preview: str):
+        self.processed += 1
+        self._advance()
+        if self.verbose:
+            print(f"  [{self.processed}] {tweet_preview[:60]}...")
+
+    def log_skipped(self, reason: str):
+        self.skipped += 1
+        self._advance()
+        if self.verbose:
+            print(f"  [SKIP] {reason}")
+
+    def summary(self):
+        self.stop()
+        print(f"\nSummary: {self.processed} tweets processed, {self.skipped} skipped")
+
+
+async def fetch_user_id(api: API, username: str) -> Optional[int]:
+    """Get user ID from username."""
+    try:
+        user = await api.user_by_login(username)
+        return user.id if user else None
+    except Exception as e:
+        print(f"Error fetching user: {e}")
+        return None
+
+
+async def fetch_tweets(
+    api: API,
+    user_id: int,
+    mode: str,
+    limit: Optional[int],
+    progress: ProgressLogger
+) -> AsyncGenerator[Tweet, None]:
+    """Fetch tweets based on mode."""
+    count = 0
+
+    if mode == "all":
+        gen = api.user_tweets_and_replies(user_id, limit=limit or 3200)
+    else:
+        gen = api.user_tweets(user_id, limit=limit or 3200)
+
+    async for tweet in gen:
+        # Skip retweets unless mode is "all"
+        if mode != "all" and tweet.retweetedTweet:
+            progress.log_skipped("retweet")
+            continue
+
+        count += 1
+        yield tweet
+
+        if limit and count >= limit:
+            break
+
+
+async def process_user(
+    username: str,
+    output_path: Path,
+    mode: str,
+    limit: Optional[int],
+    db_path: str,
+    progress: ProgressLogger
+):
+    """Process all tweets from a user."""
+    api = API(db_path)
+
+    # Check for active accounts
+    accounts = await api.pool.accounts_info()
+    if not any(acc.get("active", False) for acc in accounts):
+        print_setup_instructions()
+        sys.exit(1)
+
+    print(f"Fetching user @{username}...")
+
+    user_id = await fetch_user_id(api, username)
+    if not user_id:
+        print(f"User @{username} not found.")
+        sys.exit(1)
+
+    print(f"Found user. Fetching tweets (limit: {limit or 'all'})...")
+
+    # Start with estimated total (we'll update as we go)
+    progress.total = limit or 100
+    progress.start()
+
+    # Write header
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(f"# @{username}\n\n")
+
+    tweets_buffer = []
+    async for tweet in fetch_tweets(api, user_id, mode, limit, progress):
+        section = format_tweet_section(tweet, username)
+        tweets_buffer.append(section)
+        preview = (tweet.rawContent or "")[:50].replace('\n', ' ')
+        progress.log_processed(preview)
+
+        # Write in batches
+        if len(tweets_buffer) >= 50:
+            with open(output_path, 'a', encoding='utf-8') as f:
+                f.writelines(tweets_buffer)
+            tweets_buffer = []
+
+    # Write remaining tweets
+    if tweets_buffer:
+        with open(output_path, 'a', encoding='utf-8') as f:
+            f.writelines(tweets_buffer)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Download Twitter/X user tweets to Markdown',
+        usage='tw-research @username'
+    )
+    parser.add_argument('user', help='Username (@name) or profile URL')
+    parser.add_argument('-o', '--output', help='Output file path (default: ./[username].md)')
+    parser.add_argument('-v', '--verbose', action='store_true', help='Show detailed progress')
+    parser.add_argument('--replies', action='store_true', help='Include replies (same as --all)')
+    parser.add_argument('--all', action='store_true', help='Include tweets, replies, and retweets')
+    parser.add_argument('--limit', type=int, help='Limit number of tweets (default: all, max ~3200)')
+    parser.add_argument('--db', default=DEFAULT_DB_PATH, help='Path to twscrape accounts.db')
+
+    args = parser.parse_args()
+
+    username = get_username(args.user)
+    if args.output:
+        output_path = Path(args.output)
+    else:
+        output_path = Path.cwd() / f'{username}.md'
+
+    # Ensure db directory exists
+    db_dir = os.path.dirname(args.db)
+    if db_dir and not os.path.exists(db_dir):
+        os.makedirs(db_dir, exist_ok=True)
+
+    # Determine mode
+    mode = "tweets"
+    if args.all or args.replies:
+        mode = "all"
+
+    print(f"Output: {output_path}")
+
+    progress = ProgressLogger(verbose=args.verbose)
+
+    try:
+        asyncio.run(process_user(username, output_path, mode, args.limit, args.db, progress))
+    except KeyboardInterrupt:
+        print("\nInterrupted.")
+        progress.stop()
+        sys.exit(1)
+    except Exception as e:
+        progress.stop()
+        print(f"Error: {e}")
+        sys.exit(1)
+
+    progress.summary()
+    print(f"\nDone! Output written to: {output_path}")
+
+
+if __name__ == '__main__':
+    main()

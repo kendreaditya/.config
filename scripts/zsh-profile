@@ -1,0 +1,125 @@
+#!/usr/bin/env python3
+"""
+zsh-profile - Profile zsh startup time and identify slow components
+
+Usage: zsh-profile
+       zsh-profile --detailed
+"""
+import subprocess
+import sys
+import time
+import re
+from pathlib import Path
+
+def time_shell_startup(shell_cmd: list[str], runs: int = 3) -> float:
+    """Time shell startup, return average time in seconds."""
+    times = []
+    for _ in range(runs):
+        start = time.perf_counter()
+        subprocess.run(shell_cmd, capture_output=True, timeout=30)
+        times.append(time.perf_counter() - start)
+    return sum(times) / len(times)
+
+def profile_zsh_detailed():
+    """Profile zsh startup using zprof."""
+    # Create a temporary zshrc that sources zprof
+    # Use ZDOTDIR if set, otherwise ~/.zshrc
+    profile_script = """
+zmodload zsh/zprof
+if [[ -n "$ZDOTDIR" ]]; then
+    source "$ZDOTDIR/.zshrc"
+else
+    source ~/.zshrc
+fi
+zprof
+"""
+    result = subprocess.run(
+        ['zsh', '-c', profile_script],
+        capture_output=True,
+        text=True,
+        timeout=30
+    )
+    return result.stdout + result.stderr
+
+def profile_zshrc_lines():
+    """Profile each major section of zshrc by timing."""
+    import os
+    zdotdir = os.environ.get('ZDOTDIR', '')
+
+    # Check ZDOTDIR first, then home
+    if zdotdir:
+        zshrc_path = Path(zdotdir) / '.zshrc'
+    else:
+        zshrc_path = Path.home() / '.zshrc'
+
+    if not zshrc_path.exists():
+        zshrc_path = Path.home() / '.config' / '.zshrc'
+
+    if not zshrc_path.exists():
+        print("Could not find .zshrc")
+        return
+
+    content = zshrc_path.read_text()
+
+    # Find major slow operations
+    slow_patterns = [
+        (r'source.*oh-my-zsh', 'Oh-My-Zsh'),
+        (r'eval.*brew shellenv', 'Homebrew'),
+        (r'nvm\.sh', 'NVM'),
+        (r'pyenv', 'Pyenv'),
+        (r'rbenv', 'Rbenv'),
+        (r'conda', 'Conda'),
+        (r'compinit', 'Compinit'),
+        (r'zsh-syntax-highlighting', 'Syntax Highlighting'),
+        (r'zsh-autosuggestions', 'Autosuggestions'),
+    ]
+
+    print("\n📋 Checking for known slow operations in .zshrc:\n")
+    found = []
+    for pattern, name in slow_patterns:
+        if re.search(pattern, content, re.IGNORECASE):
+            found.append(name)
+            print(f"  ✓ {name}")
+
+    if not found:
+        print("  No known slow operations found")
+
+    return found
+
+def main():
+    detailed = '--detailed' in sys.argv or '-d' in sys.argv
+
+    print("🔍 Profiling zsh startup time...\n")
+
+    # Baseline timing
+    print("⏱️  Timing shell startup (3 runs)...")
+    avg_time = time_shell_startup(['zsh', '-i', '-c', 'exit'])
+    print(f"   Average startup time: {avg_time:.3f}s")
+
+    if avg_time > 1.0:
+        print(f"   ⚠️  Shell is slow (>{avg_time:.1f}s)")
+    elif avg_time > 0.5:
+        print(f"   ⚡ Shell is moderate ({avg_time:.2f}s)")
+    else:
+        print(f"   ✅ Shell is fast ({avg_time:.2f}s)")
+
+    # Check for slow operations
+    profile_zshrc_lines()
+
+    # Compare with bare zsh
+    print("\n⏱️  Timing bare zsh (no rc)...")
+    bare_time = time_shell_startup(['zsh', '--no-rcs', '-c', 'exit'])
+    print(f"   Bare zsh: {bare_time:.3f}s")
+    print(f"   .zshrc overhead: {avg_time - bare_time:.3f}s")
+
+    # Detailed zprof output
+    if detailed:
+        print("\n" + "="*60)
+        print("📊 Detailed zprof output:")
+        print("="*60 + "\n")
+        print(profile_zsh_detailed())
+    else:
+        print("\n💡 Run with --detailed for full zprof output")
+
+if __name__ == '__main__':
+    main()
