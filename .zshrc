@@ -106,11 +106,16 @@ source $ZSH/oh-my-zsh.sh
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 #
-#
-#
+
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
+export PATH="/opt/homebrew/opt/openjdk@17/bin:$PATH"
 
 # Add custom scripts to PATH
 export PATH="$HOME/.config/scripts:$PATH"
 
 # Default Editor
 export EDITOR=nvim
+
+# bun completions
+[ -s "/Users/kendreaditya/.bun/_bun" ] && source "/Users/kendreaditya/.bun/_bun"
