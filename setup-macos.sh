@@ -160,6 +160,25 @@ defaults write com.apple.LaunchServices/com.apple.launchservices.secure LSHandle
 # Disable Spotlight command+space shortcut
 defaults write com.apple.symbolichotkeys AppleSymbolicHotKeys -dict-add 64 "<dict><key>enabled</key><false/></dict>"
 
+# Disable .DS_Store on external drives
+defaults write com.apple.desktopservices DSDontWriteNetworkStores -bool true
+defaults write com.apple.desktopservices DSDontWriteUSBStores -bool true
+
+# Dark mode
+defaults write NSGlobalDomain AppleInterfaceStyle -string "Dark"
+
+# Finder improvements
+defaults write com.apple.finder ShowStatusBar -bool true
+defaults write com.apple.finder _FXShowPosixPathInTitle -bool true
+defaults write com.apple.finder FXEnableExtensionChangeWarning -bool false
+defaults write com.apple.finder FXDefaultSearchScope -string "SCcf"
+
+# Dock: hide recent apps
+defaults write com.apple.dock show-recents -bool false
+
+# Crash reporter as notification
+defaults write com.apple.CrashReporter DialogType -string "notification"
+
 # Restart affected services
 echo "Restarting services to apply changes..."
 killall Dock
