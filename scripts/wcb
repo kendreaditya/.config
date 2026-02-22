@@ -10,12 +10,9 @@ Usage: wcb https://docs.example.com
 """
 import os
 import sys
-
-# Self-bootstrap: ensure we're running in the config venv
-VENV_DIR = os.path.expanduser("~/.config/config-venv")
-VENV_PYTHON = os.path.join(VENV_DIR, "bin", "python3")
-if os.path.exists(VENV_PYTHON) and not sys.prefix.startswith(VENV_DIR):
-    os.execv(VENV_PYTHON, [VENV_PYTHON] + sys.argv)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _utils import ensure_config_venv
+ensure_config_venv()
 
 import asyncio
 import hashlib

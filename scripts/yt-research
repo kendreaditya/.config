@@ -12,12 +12,9 @@ Output: ./[channel_name].md or ./[search_query].md in current directory
 """
 import os
 import sys
-
-# Self-bootstrap: ensure we're running in the config venv
-VENV_DIR = os.path.expanduser("~/.config/config-venv")
-VENV_PYTHON = os.path.join(VENV_DIR, "bin", "python3")
-if os.path.exists(VENV_PYTHON) and not sys.prefix.startswith(VENV_DIR):
-    os.execv(VENV_PYTHON, [VENV_PYTHON] + sys.argv)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _utils import ensure_config_venv
+ensure_config_venv()
 
 import asyncio
 import argparse
@@ -29,10 +26,8 @@ import urllib.request
 from pathlib import Path
 from typing import Optional
 import yt_dlp
-from rich.progress import (
-    Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn,
-    TimeRemainingColumn, TimeElapsedColumn,
-)
+from _utils import sanitize_filename, ProgressLogger, MarkdownWriter
+from _context import split_sentences
 
 
 def get_channel_name(channel_input: str) -> str:
@@ -77,13 +72,6 @@ def get_search_query(input_str: str) -> str:
         params = urllib.parse.parse_qs(parsed.query)
         return params.get('search_query', [input_str])[0]
     return input_str
-
-
-def sanitize_filename(name: str) -> str:
-    """Turn a search query into a safe filename slug."""
-    name = re.sub(r'[^\w\s-]', '', name)
-    name = re.sub(r'\s+', '_', name.strip())
-    return name or 'search_results'
 
 
 def clean_vtt_content(vtt_text: str) -> str:
@@ -132,7 +120,7 @@ def clean_vtt_content(vtt_text: str) -> str:
 
     text = ' '.join(lines)
     text = re.sub(r'\s+', ' ', text)
-    text = re.sub(r'([.!?])\s+([A-Z])', r'\1\n\n\2', text)
+    text = '\n\n'.join(split_sentences(text))
 
     return text.strip()
 
@@ -215,123 +203,13 @@ class RateLimitMonitor:
         await self._gate.wait()
 
 
-class ProgressLogger:
-    def __init__(self, verbose: bool = False, total: int = 0):
-        self.verbose = verbose
-        self.processed = 0
-        self.skipped = 0
-        self.failed = 0
-        self.rate_limited = 0
-        self.resumed = 0
-        self.total = total
-        self.progress = None
-        self.task_id = None
-
-    def start(self):
-        if not self.verbose and self.total > 0:
-            self.progress = Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TaskProgressColumn(),
-                TextColumn("[cyan]{task.completed}/{task.total}"),
-                TimeElapsedColumn(),
-                TimeRemainingColumn(),
-            )
-            self.progress.start()
-            self.task_id = self.progress.add_task("Processing videos", total=self.total)
-
-    def stop(self):
-        if self.progress:
-            self.progress.stop()
-
-    def _update_description(self, current_video: str = ""):
-        """Update progress bar with current stats and video."""
-        if self.progress and self.task_id is not None:
-            stats = []
-            if self.processed > 0:
-                stats.append(f"[green]{self.processed} processed[/green]")
-            if self.resumed > 0:
-                stats.append(f"[blue]{self.resumed} resumed[/blue]")
-            if self.skipped > 0:
-                stats.append(f"[yellow]{self.skipped} skipped[/yellow]")
-            if self.rate_limited > 0:
-                stats.append(f"[red]{self.rate_limited} rate limited[/red]")
-            if self.failed > 0:
-                stats.append(f"[red]{self.failed} failed[/red]")
-
-            stats_str = ", ".join(stats) if stats else "Starting..."
-
-            if current_video:
-                desc = f"{stats_str} | [cyan]Current:[/cyan] {current_video[:50]}..."
-            else:
-                desc = stats_str
-
-            self.progress.update(self.task_id, description=desc)
-
-    def set_current(self, title: str):
-        """Set the current video being processed (updates progress bar)."""
-        if not self.verbose:
-            self._update_description(title)
-        elif self.verbose:
-            print(f"  [PROCESSING] {title[:60]}...")
-
-    def _advance(self):
-        if self.progress and self.task_id is not None:
-            self.progress.advance(self.task_id)
-
-    def log_processed(self, title: str):
-        self.processed += 1
-        self._advance()
-        if self.verbose:
-            print(f"  [✓] {title[:60]}...")
-        else:
-            self._update_description()
-
-    def log_skipped(self, title: str, reason: str):
-        self.skipped += 1
-        self._advance()
-        if self.verbose:
-            print(f"  [SKIP] {title[:40]}... ({reason})")
-        else:
-            self._update_description()
-
-    def log_failed(self, title: str, error: str):
-        self.failed += 1
-        self._advance()
-        if self.verbose:
-            print(f"  [FAIL] {title[:40]}... ({error})")
-        else:
-            self._update_description()
-
-    def log_rate_limited(self, title: str):
-        self.rate_limited += 1
-        self._advance()
-        if self.verbose:
-            print(f"  [RATE LIMITED] {title[:40]}...")
-        else:
-            self._update_description()
-
-    def log_resumed(self, title: str):
-        self.resumed += 1
-        self._advance()
-        if self.verbose:
-            print(f"  [RESUMED] {title[:40]}... (already exists)")
-        else:
-            self._update_description()
-
-    def summary(self):
-        self.stop()
-        parts = [f"{self.processed} processed"]
-        if self.resumed > 0:
-            parts.append(f"{self.resumed} resumed")
-        if self.skipped > 0:
-            parts.append(f"{self.skipped} skipped")
-        if self.rate_limited > 0:
-            parts.append(f"{self.rate_limited} rate limited")
-        if self.failed > 0:
-            parts.append(f"{self.failed} failed")
-        print(f"\nSummary: {', '.join(parts)}")
+YT_PROGRESS_METRICS = [
+    {"name": "processed", "color": "green"},
+    {"name": "resumed", "color": "blue"},
+    {"name": "skipped", "color": "yellow"},
+    {"name": "rate_limited", "color": "red"},
+    {"name": "failed", "color": "red"},
+]
 
 
 def _try_fetch_subtitles(video_url: str, ydl_opts: dict) -> tuple[Optional[str], Optional[str]]:
@@ -448,8 +326,9 @@ async def process_channel(channel_input: str, output_path: Path, progress: Progr
 
     # Only write header if this is a new file
     if not resuming:
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(f"# {channel_name}\n\n")
+        writer = MarkdownWriter(output_path, f"# {channel_name}\n\n")
+    else:
+        writer = MarkdownWriter(output_path, "", resume=True)
 
     rate_monitor = RateLimitMonitor(threshold=3)
     semaphore = asyncio.Semaphore(5)
@@ -457,20 +336,20 @@ async def process_channel(channel_input: str, output_path: Path, progress: Progr
     async def process_video(video_info: dict):
         async with semaphore:
             if rate_monitor.should_abort:
-                progress.log_skipped(video_info.get('title', '?'), "aborted")
+                progress.advance("skipped", video_info.get('title', '?'))
                 return None
 
             await rate_monitor.wait_if_paused()
 
             if rate_monitor.should_abort:
-                progress.log_skipped(video_info.get('title', '?'), "aborted")
+                progress.advance("skipped", video_info.get('title', '?'))
                 return None
 
             video_id = video_info.get('id')
             title = video_info.get('title', 'Unknown Title')
 
             if not video_id:
-                progress.log_skipped(title, "no video ID")
+                progress.advance("skipped", title)
                 return None
 
             # Show current video being processed
@@ -487,35 +366,36 @@ async def process_channel(channel_input: str, output_path: Path, progress: Progr
                     {'quiet': True, 'no_warnings': True}
                 )
             except Exception as e:
-                progress.log_failed(title, str(e)[:30])
+                progress.advance("failed", title)
                 return None
 
             if not vtt_content:
                 if error_reason == "rate limited":
                     await rate_monitor.record_rate_limit()
-                    progress.log_rate_limited(title)
+                    progress.advance("rate_limited", title)
                 else:
                     await rate_monitor.record_success()
-                    progress.log_skipped(title, error_reason or "unknown error")
+                    progress.advance("skipped", title)
                 return None
 
             await rate_monitor.record_success()
             cleaned_text = clean_vtt_content(vtt_content)
             if not cleaned_text:
-                progress.log_skipped(title, "empty transcript")
+                progress.advance("skipped", title)
                 return None
 
             section = format_markdown_section(video_id, title, cleaned_text)
-            progress.log_processed(title)
+            progress.advance("processed", title)
             return section
 
     tasks = [process_video(v) for v in videos]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    with open(output_path, 'a', encoding='utf-8') as f:
-        for result in results:
-            if isinstance(result, str) and result:
-                f.write(result)
+    writer = MarkdownWriter(output_path, "", resume=True)
+    for result in results:
+        if isinstance(result, str) and result:
+            writer.append(result)
+    writer.close()
 
 
 async def process_search(query: str, num_results: int, output_path: Path, progress: ProgressLogger):
@@ -569,8 +449,9 @@ async def process_search(query: str, num_results: int, output_path: Path, progre
 
     # Only write header if this is a new file
     if not resuming:
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(f"# Search: {query}\n\n")
+        writer = MarkdownWriter(output_path, f"# Search: {query}\n\n")
+    else:
+        writer = MarkdownWriter(output_path, "", resume=True)
 
     rate_monitor = RateLimitMonitor(threshold=3)
     semaphore = asyncio.Semaphore(5)
@@ -578,20 +459,20 @@ async def process_search(query: str, num_results: int, output_path: Path, progre
     async def process_video(video_info: dict):
         async with semaphore:
             if rate_monitor.should_abort:
-                progress.log_skipped(video_info.get('title', '?'), "aborted")
+                progress.advance("skipped", video_info.get('title', '?'))
                 return None
 
             await rate_monitor.wait_if_paused()
 
             if rate_monitor.should_abort:
-                progress.log_skipped(video_info.get('title', '?'), "aborted")
+                progress.advance("skipped", video_info.get('title', '?'))
                 return None
 
             video_id = video_info.get('id')
             title = video_info.get('title', 'Unknown Title')
 
             if not video_id:
-                progress.log_skipped(title, "no video ID")
+                progress.advance("skipped", title)
                 return None
 
             progress.set_current(title)
@@ -607,35 +488,35 @@ async def process_search(query: str, num_results: int, output_path: Path, progre
                     {'quiet': True, 'no_warnings': True}
                 )
             except Exception as e:
-                progress.log_failed(title, str(e)[:30])
+                progress.advance("failed", title)
                 return None
 
             if not vtt_content:
                 if error_reason == "rate limited":
                     await rate_monitor.record_rate_limit()
-                    progress.log_rate_limited(title)
+                    progress.advance("rate_limited", title)
                 else:
                     await rate_monitor.record_success()
-                    progress.log_skipped(title, error_reason or "unknown error")
+                    progress.advance("skipped", title)
                 return None
 
             await rate_monitor.record_success()
             cleaned_text = clean_vtt_content(vtt_content)
             if not cleaned_text:
-                progress.log_skipped(title, "empty transcript")
+                progress.advance("skipped", title)
                 return None
 
             section = format_markdown_section(video_id, title, cleaned_text)
-            progress.log_processed(title)
+            progress.advance("processed", title)
             return section
 
     tasks = [process_video(v) for v in videos]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    with open(output_path, 'a', encoding='utf-8') as f:
-        for result in results:
-            if isinstance(result, str) and result:
-                f.write(result)
+    for result in results:
+        if isinstance(result, str) and result:
+            writer.append(result)
+    writer.close()
 
 
 def main():
@@ -659,7 +540,8 @@ def main():
 
         print(f"Output: {output_path}")
 
-        progress = ProgressLogger(verbose=args.verbose)
+        progress = ProgressLogger(verbose=args.verbose, task_label="Processing videos",
+                                   metrics=YT_PROGRESS_METRICS, show_eta=True)
         asyncio.run(process_search(query, args.num_results, output_path, progress))
     else:
         channel_name = get_channel_name(args.input)
@@ -670,7 +552,8 @@ def main():
 
         print(f"Output: {output_path}")
 
-        progress = ProgressLogger(verbose=args.verbose)
+        progress = ProgressLogger(verbose=args.verbose, task_label="Processing videos",
+                                   metrics=YT_PROGRESS_METRICS, show_eta=True)
         asyncio.run(process_channel(args.input, output_path, progress))
 
     progress.summary()
