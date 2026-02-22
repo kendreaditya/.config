@@ -112,11 +112,6 @@ echo "Configuring macOS settings..."
 # Disable automatic spelling correction
 defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
 
-# Menu Bar Settings
-defaults write com.apple.controlcenter "NSStatusItem Visible Sound" -int 1
-defaults write com.apple.controlcenter "NSStatusItem Visible Bluetooth" -int 1
-defaults write com.apple.controlcenter "NSStatusItem Visible NowPlaying" -int 1
-
 # Dock settings
 defaults write com.apple.dock autohide -bool true
 defaults write com.apple.dock autohide-delay -float 0
@@ -128,7 +123,7 @@ defaults write com.apple.dock persistent-apps -array
 
 # Finder settings
 defaults write com.apple.finder AppleShowAllExtensions -bool true
-defaults write com.apple.finder FXPreferredViewStyle -string "clmv"
+defaults write com.apple.finder FXPreferredViewStyle -string "Nlsv"
 defaults write com.apple.finder AppleShowAllFiles YES
 defaults write com.apple.finder ShowPathbar -bool true
 
@@ -138,7 +133,7 @@ defaults write NSGlobalDomain KeyRepeat -int 2
 defaults write -g ApplePressAndHoldEnabled -bool false
 
 # Disables "Displays have separate Spaces"
-defaults write com.apple.spaces spans-displays -bool false
+defaults write com.apple.spaces spans-displays -bool true
 
 
 # Enable TouchID for sudo
