@@ -83,6 +83,7 @@ fi
 # Install applications
 sudo snap install code --classic
 sudo snap install todoist
+sudo snap install protonvpn-community
 
 # Install Zoom
 sudo snap install zoom-client
