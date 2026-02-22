@@ -664,7 +664,7 @@ class WebCrawler:
     def _is_same_domain(self, url: str) -> bool:
         try:
             extract = tldextract.extract(url)
-            if extract.registered_domain != self._root_extract.registered_domain:
+            if extract.top_domain_under_public_suffix != self._root_extract.top_domain_under_public_suffix:
                 return False
             if self.config.stay_on_subdomain:
                 if extract.subdomain != self._root_extract.subdomain:
