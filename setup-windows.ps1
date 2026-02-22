@@ -52,6 +52,9 @@ winget install --id bruno.bruno
 winget install --id ollama.ollama
 winget install --id Microsoft.WindowsTerminal
 winget install --id Warp.Warp
+winget install --id Cloudflare.Warp
+winget install --id Oven-sh.Bun
+winget install --id DenoLand.Deno
 
 
 # Install Windows-specific packages
