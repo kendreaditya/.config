@@ -4,8 +4,11 @@ yt-research - Stream YouTube channel transcripts to Markdown
 
 Usage: yt-research @channel_name
        yt-research https://www.youtube.com/@channel_name
+       yt-research "search query terms"
+       yt-research https://www.youtube.com/results?search_query=...
+       yt-research -n 20 "search query terms"
 
-Output: ./[channel_name].md in current directory
+Output: ./[channel_name].md or ./[search_query].md in current directory
 """
 import os
 import sys
@@ -21,6 +24,7 @@ import argparse
 import re
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Optional
@@ -54,6 +58,32 @@ def get_channel_url(channel_input: str) -> str:
     if channel_input.startswith('@'):
         return f'https://www.youtube.com/{channel_input}'
     return f'https://www.youtube.com/@{channel_input}'
+
+
+def is_search_input(input_str: str) -> bool:
+    """Check if the input is a YouTube search URL or a plain search query."""
+    if 'youtube.com/results' in input_str and 'search_query=' in input_str:
+        return True
+    # Not a channel URL or @handle → treat as search query
+    if not input_str.startswith('@') and not input_str.startswith('http'):
+        return True
+    return False
+
+
+def get_search_query(input_str: str) -> str:
+    """Extract search query from a YouTube search URL or return raw query."""
+    if 'youtube.com/results' in input_str and 'search_query=' in input_str:
+        parsed = urllib.parse.urlparse(input_str)
+        params = urllib.parse.parse_qs(parsed.query)
+        return params.get('search_query', [input_str])[0]
+    return input_str
+
+
+def sanitize_filename(name: str) -> str:
+    """Turn a search query into a safe filename slug."""
+    name = re.sub(r'[^\w\s-]', '', name)
+    name = re.sub(r'\s+', '_', name.strip())
+    return name or 'search_results'
 
 
 def clean_vtt_content(vtt_text: str) -> str:
@@ -488,27 +518,160 @@ async def process_channel(channel_input: str, output_path: Path, progress: Progr
                 f.write(result)
 
 
+async def process_search(query: str, num_results: int, output_path: Path, progress: ProgressLogger):
+    """Process top N videos from a YouTube search query."""
+
+    # Check for existing video IDs (resume functionality)
+    existing_ids = get_existing_video_ids(output_path)
+    if existing_ids:
+        print(f"Found existing file with {len(existing_ids)} videos. Will resume...")
+
+    print(f"Searching YouTube for: {query} (top {num_results} results)...")
+
+    ydl_opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'extract_flat': True,
+        'ignoreerrors': True,
+    }
+
+    videos = []
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        try:
+            result = ydl.extract_info(f"ytsearch{num_results}:{query}", download=False)
+            if result and 'entries' in result:
+                videos = [e for e in result['entries'] if e]
+        except Exception as e:
+            print(f"Error searching YouTube: {e}")
+            return
+
+    if not videos:
+        print("No videos found.")
+        return
+
+    # Resume mode: filter out already-processed videos
+    resuming = len(existing_ids) > 0
+    if resuming:
+        original_count = len(videos)
+        videos = [v for v in videos if v.get('id') not in existing_ids]
+        progress.resumed = original_count - len(videos)
+        print(f"Found {original_count} videos, skipping {progress.resumed} already processed. Processing {len(videos)}...")
+    else:
+        print(f"Found {len(videos)} videos. Processing...")
+
+    if not videos:
+        print("All videos already processed.")
+        return
+
+    # Set total and start progress bar
+    progress.total = len(videos)
+    progress.start()
+
+    # Only write header if this is a new file
+    if not resuming:
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(f"# Search: {query}\n\n")
+
+    rate_monitor = RateLimitMonitor(threshold=3)
+    semaphore = asyncio.Semaphore(5)
+
+    async def process_video(video_info: dict):
+        async with semaphore:
+            if rate_monitor.should_abort:
+                progress.log_skipped(video_info.get('title', '?'), "aborted")
+                return None
+
+            await rate_monitor.wait_if_paused()
+
+            if rate_monitor.should_abort:
+                progress.log_skipped(video_info.get('title', '?'), "aborted")
+                return None
+
+            video_id = video_info.get('id')
+            title = video_info.get('title', 'Unknown Title')
+
+            if not video_id:
+                progress.log_skipped(title, "no video ID")
+                return None
+
+            progress.set_current(title)
+
+            video_url = f"https://www.youtube.com/watch?v={video_id}"
+
+            loop = asyncio.get_event_loop()
+            try:
+                vtt_content, error_reason = await loop.run_in_executor(
+                    None,
+                    fetch_video_subtitles,
+                    video_url,
+                    {'quiet': True, 'no_warnings': True}
+                )
+            except Exception as e:
+                progress.log_failed(title, str(e)[:30])
+                return None
+
+            if not vtt_content:
+                if error_reason == "rate limited":
+                    await rate_monitor.record_rate_limit()
+                    progress.log_rate_limited(title)
+                else:
+                    await rate_monitor.record_success()
+                    progress.log_skipped(title, error_reason or "unknown error")
+                return None
+
+            await rate_monitor.record_success()
+            cleaned_text = clean_vtt_content(vtt_content)
+            if not cleaned_text:
+                progress.log_skipped(title, "empty transcript")
+                return None
+
+            section = format_markdown_section(video_id, title, cleaned_text)
+            progress.log_processed(title)
+            return section
+
+    tasks = [process_video(v) for v in videos]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    with open(output_path, 'a', encoding='utf-8') as f:
+        for result in results:
+            if isinstance(result, str) and result:
+                f.write(result)
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description='Stream YouTube channel transcripts to Markdown',
-        usage='yt-research @channel_name'
+        description='Stream YouTube channel/search transcripts to Markdown',
+        usage='yt-research @channel_name\n       yt-research "search query"\n       yt-research https://www.youtube.com/results?search_query=...'
     )
-    parser.add_argument('channel', help='Channel name (@name) or URL')
-    parser.add_argument('-o', '--output', help='Output file path (default: ./[channel].md)')
+    parser.add_argument('input', help='Channel (@name or URL), search query, or YouTube search URL')
+    parser.add_argument('-o', '--output', help='Output file path')
+    parser.add_argument('-n', '--num-results', type=int, default=15, help='Number of search results to process (default: 15)')
     parser.add_argument('-v', '--verbose', action='store_true', help='Show detailed progress for each video')
 
     args = parser.parse_args()
 
-    channel_name = get_channel_name(args.channel)
-    if args.output:
-        output_path = Path(args.output)
+    if is_search_input(args.input):
+        query = get_search_query(args.input)
+        if args.output:
+            output_path = Path(args.output)
+        else:
+            output_path = Path.cwd() / f'{sanitize_filename(query)}.md'
+
+        print(f"Output: {output_path}")
+
+        progress = ProgressLogger(verbose=args.verbose)
+        asyncio.run(process_search(query, args.num_results, output_path, progress))
     else:
-        output_path = Path.cwd() / f'{channel_name}.md'
+        channel_name = get_channel_name(args.input)
+        if args.output:
+            output_path = Path(args.output)
+        else:
+            output_path = Path.cwd() / f'{channel_name}.md'
 
-    print(f"Output: {output_path}")
+        print(f"Output: {output_path}")
 
-    progress = ProgressLogger(verbose=args.verbose)
-    asyncio.run(process_channel(args.channel, output_path, progress))
+        progress = ProgressLogger(verbose=args.verbose)
+        asyncio.run(process_channel(args.input, output_path, progress))
 
     progress.summary()
     print(f"\nDone! Output written to: {output_path}")
