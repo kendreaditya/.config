@@ -116,6 +116,8 @@ defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
 defaults write com.apple.controlcenter "NSStatusItem Visible Sound" -int 1
 defaults write com.apple.controlcenter "NSStatusItem Visible Bluetooth" -int 1
 defaults write com.apple.controlcenter "NSStatusItem Visible NowPlaying" -int 1
+defaults write com.apple.controlcenter "NSStatusItem Visible Battery" -int 1
+defaults write com.apple.controlcenter BatteryShowPercentage -bool true
 
 # Dock settings
 defaults write com.apple.dock autohide -bool true
