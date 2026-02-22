@@ -55,6 +55,7 @@ winget install --id Warp.Warp
 winget install --id Cloudflare.Warp
 winget install --id Oven-sh.Bun
 winget install --id DenoLand.Deno
+winget install --id ProtonTechnologies.ProtonVPN
 
 
 # Install Windows-specific packages
