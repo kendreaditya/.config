@@ -9,12 +9,9 @@ Output: ./[username].md in current directory
 """
 import os
 import sys
-
-# Self-bootstrap: ensure we're running in the config venv
-VENV_DIR = os.path.expanduser("~/.config/config-venv")
-VENV_PYTHON = os.path.join(VENV_DIR, "bin", "python3")
-if os.path.exists(VENV_PYTHON) and not sys.prefix.startswith(VENV_DIR):
-    os.execv(VENV_PYTHON, [VENV_PYTHON] + sys.argv)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _utils import ensure_config_venv
+ensure_config_venv()
 
 import asyncio
 import argparse
@@ -25,7 +22,7 @@ from typing import Optional, AsyncGenerator
 
 from twscrape import API, gather
 from twscrape.models import Tweet
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+from _utils import ProgressLogger, MarkdownWriter
 
 
 DEFAULT_DB_PATH = os.path.expanduser("~/.config/twscrape/accounts.db")
@@ -110,55 +107,10 @@ def format_tweet_section(tweet: Tweet, username: str) -> str:
     return section
 
 
-class ProgressLogger:
-    def __init__(self, verbose: bool = False, total: int = 0):
-        self.verbose = verbose
-        self.processed = 0
-        self.skipped = 0
-        self.total = total
-        self.progress = None
-        self.task_id = None
-
-    def start(self):
-        if not self.verbose and self.total > 0:
-            self.progress = Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TaskProgressColumn(),
-                TextColumn("[cyan]{task.completed}/{task.total}"),
-            )
-            self.progress.start()
-            self.task_id = self.progress.add_task("Fetching tweets", total=self.total)
-
-    def stop(self):
-        if self.progress:
-            self.progress.stop()
-
-    def update_total(self, total: int):
-        self.total = total
-        if self.progress and self.task_id is not None:
-            self.progress.update(self.task_id, total=total)
-
-    def _advance(self):
-        if self.progress and self.task_id is not None:
-            self.progress.advance(self.task_id)
-
-    def log_processed(self, tweet_preview: str):
-        self.processed += 1
-        self._advance()
-        if self.verbose:
-            print(f"  [{self.processed}] {tweet_preview[:60]}...")
-
-    def log_skipped(self, reason: str):
-        self.skipped += 1
-        self._advance()
-        if self.verbose:
-            print(f"  [SKIP] {reason}")
-
-    def summary(self):
-        self.stop()
-        print(f"\nSummary: {self.processed} tweets processed, {self.skipped} skipped")
+TW_PROGRESS_METRICS = [
+    {"name": "processed", "color": "green"},
+    {"name": "skipped", "color": "yellow"},
+]
 
 
 async def fetch_user_id(api: API, username: str) -> Optional[int]:
@@ -189,7 +141,7 @@ async def fetch_tweets(
     async for tweet in gen:
         # Skip retweets unless mode is "all"
         if mode != "all" and tweet.retweetedTweet:
-            progress.log_skipped("retweet")
+            progress.advance("skipped", "retweet")
             continue
 
         count += 1
@@ -230,26 +182,20 @@ async def process_user(
     progress.start()
 
     # Write header
-    with open(output_path, 'w', encoding='utf-8') as f:
-        f.write(f"# @{username}\n\n")
+    writer = MarkdownWriter(output_path, f"# @{username}\n\n")
 
-    tweets_buffer = []
     async for tweet in fetch_tweets(api, user_id, mode, limit, progress):
         section = format_tweet_section(tweet, username)
-        tweets_buffer.append(section)
+        writer.append(section)
         preview = (tweet.rawContent or "")[:50].replace('\n', ' ')
-        progress.log_processed(preview)
+        progress.advance("processed", preview)
 
         # Write in batches
-        if len(tweets_buffer) >= 50:
-            with open(output_path, 'a', encoding='utf-8') as f:
-                f.writelines(tweets_buffer)
-            tweets_buffer = []
+        if len(writer._buffer) >= 50:
+            writer.flush()
 
     # Write remaining tweets
-    if tweets_buffer:
-        with open(output_path, 'a', encoding='utf-8') as f:
-            f.writelines(tweets_buffer)
+    writer.close()
 
 
 def main():
@@ -285,7 +231,8 @@ def main():
 
     print(f"Output: {output_path}")
 
-    progress = ProgressLogger(verbose=args.verbose)
+    progress = ProgressLogger(verbose=args.verbose, task_label="Fetching tweets",
+                               metrics=TW_PROGRESS_METRICS, show_eta=False)
 
     try:
         asyncio.run(process_user(username, output_path, mode, args.limit, args.db, progress))

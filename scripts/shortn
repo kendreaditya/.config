@@ -7,6 +7,7 @@ using extractive summarization with per-section TextRank (no LLM required).
 """
 
 import argparse
+import os
 import re
 import sys
 import time
@@ -16,26 +17,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _context import split_sentences, get_tokenizer, count_tokens
+
 
 def log(msg: str, verbose: bool = False, file=sys.stderr):
     """Print log message if verbose mode is enabled."""
     if verbose:
         print(f"[shortn] {msg}", file=file)
-
-
-def get_tokenizer(model: str = "cl100k_base"):
-    """Get tiktoken tokenizer, with helpful error if not installed."""
-    try:
-        import tiktoken
-        return tiktoken.get_encoding(model)
-    except ImportError:
-        print("Error: tiktoken is required. Install with: pip install tiktoken", file=sys.stderr)
-        sys.exit(1)
-
-
-def count_tokens(text: str, tokenizer) -> int:
-    """Count tokens in text."""
-    return len(tokenizer.encode(text))
 
 
 def get_words(text: str) -> set[str]:
@@ -139,10 +128,7 @@ def split_paragraph(text: str) -> list[str]:
     if all(re.match(r'^[\s]*[-*+]|\d+\.', line) for line in lines if line.strip()):
         return [text]
 
-    # Sentence boundary pattern
-    pattern = r'(?<=[.!?])\s+(?=[A-Z])'
-    sentences = re.split(pattern, text)
-    return [s.strip() for s in sentences if s.strip()]
+    return split_sentences(text)
 
 
 def parse_into_sections(text: str, verbose: bool = False) -> tuple[list[str], list[Section]]:
