@@ -56,6 +56,24 @@ if ! command -v node &>/dev/null; then
   sudo apt install -y nodejs
 fi
 
+# Install Bun
+if ! command -v bun &>/dev/null; then
+  curl -fsSL https://bun.sh/install | bash
+fi
+
+# Install Deno
+if ! command -v deno &>/dev/null; then
+  curl -fsSL https://deno.land/install.sh | sh
+fi
+
+# Install Cloudflare WARP
+if ! command -v warp-cli &>/dev/null; then
+  curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+  echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+  sudo apt update
+  sudo apt install -y cloudflare-warp
+fi
+
 # Install snap if not available
 if ! command -v snap &> /dev/null; then
   sudo apt install -y snapd

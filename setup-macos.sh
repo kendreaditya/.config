@@ -54,6 +54,8 @@ brew install tesseract
 brew install graphviz
 brew install fswatch
 brew install nvm
+brew install bun
+brew install deno
 
 # Install applications
 brew install --cask raycast
@@ -76,6 +78,8 @@ brew install --cask ghostty
 brew install --cask logseq
 brew install --cask obsidian 
 brew install --cask postman
+brew install --cask protonvpn
+brew install --cask cloudflare-warp
 
 # Install oh-my-zsh
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
