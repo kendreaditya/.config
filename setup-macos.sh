@@ -28,58 +28,22 @@ fi
 
 echo "Installing packages and applications..."
 
-# Install packages
-brew install imagemagick
-brew install cmake
-brew install gcc
-brew install ffmpeg
-brew install gh
-brew install wget
-brew install curl
-brew install python@3.12
-brew install fzf
-brew install neovim && sh -c 'curl -fLo "${XDG_DATA_HOME:-$HOME/.local/share}"/nvim/site/autoload/plug.vim --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'
-brew install yt-dlp
-brew install yq
-brew install tmux
-brew install atuin
-brew install vim
-brew install neofetch
-brew install node
-brew install git
-brew install zsh
-brew install rg
-brew install ocrmypdf
-brew install tesseract
-brew install graphviz
-brew install fswatch
-brew install nvm
-brew install bun
-brew install deno
+# Avoid redundant API fetches since brew update already ran above
+export HOMEBREW_NO_AUTO_UPDATE=1
 
-# Install applications
-brew install --cask raycast
-brew install --cask zed
-brew install --cask todoist
-brew install --cask tomatobar
-brew install --cask zoom
-brew install --cask alt-tab
-brew install --cask bruno
-brew install --cask hiddenbar
-brew install --cask blackhole-2ch
-brew install --cask ollama
-brew install --cask amethyst
-brew install --cask hammerspoon
-brew install --cask karabiner-elements
-brew install --cask visual-studio-code
-brew install --cask google-chrome
-brew install --cask warp
-brew install --cask ghostty
-brew install --cask logseq
-brew install --cask obsidian 
-brew install --cask postman
-brew install --cask protonvpn
-brew install --cask cloudflare-warp
+# Install all formulae in one call (resolves deps once, downloads in parallel)
+brew install imagemagick cmake gcc ffmpeg gh wget curl python@3.12 \
+  fzf neovim yt-dlp yq tmux atuin vim neofetch node git zsh ripgrep \
+  ocrmypdf tesseract graphviz fswatch nvm deno oven-sh/bun/bun
+
+# Install vim-plug for neovim
+sh -c 'curl -fLo "${XDG_DATA_HOME:-$HOME/.local/share}"/nvim/site/autoload/plug.vim --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'
+
+# Install all casks in one call (--overwrite handles apps already installed outside brew)
+brew install --cask --overwrite raycast zed todoist tomatobar zoom alt-tab bruno \
+  hiddenbar blackhole-2ch ollama amethyst hammerspoon karabiner-elements \
+  visual-studio-code google-chrome warp ghostty logseq obsidian postman \
+  protonvpn cloudflare-warp
 
 # Install oh-my-zsh
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
@@ -178,6 +142,12 @@ defaults write com.apple.dock show-recents -bool false
 
 # Crash reporter as notification
 defaults write com.apple.CrashReporter DialogType -string "notification"
+
+# Reclaim disk space from stale brew downloads
+brew cleanup
+
+# Clear pip download cache (packages already installed into venv)
+pip3 cache purge
 
 # Restart affected services
 echo "Restarting services to apply changes..."
