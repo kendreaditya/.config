@@ -4,6 +4,7 @@ yt-research - Stream YouTube channel transcripts to Markdown
 
 Usage: yt-research @channel_name
        yt-research https://www.youtube.com/@channel_name
+       yt-research https://www.youtube.com/watch?v=VIDEO_ID
        yt-research "search query terms"
        yt-research https://www.youtube.com/results?search_query=...
        yt-research -n 20 "search query terms"
@@ -56,6 +57,21 @@ def get_channel_url(channel_input: str) -> str:
     if channel_input.startswith('@'):
         return f'https://www.youtube.com/{channel_input}'
     return f'https://www.youtube.com/@{channel_input}'
+
+
+def is_video_url(input_str: str) -> bool:
+    """Check if the input is a direct YouTube video URL."""
+    if 'youtube.com/watch' in input_str and 'v=' in input_str:
+        return True
+    if 'youtu.be/' in input_str:
+        return True
+    return False
+
+
+def get_video_id(input_str: str) -> Optional[str]:
+    """Extract video ID from a YouTube video URL."""
+    match = re.search(r'(?:youtube\.com/watch\?.*v=|youtu\.be/)([a-zA-Z0-9_-]{11})', input_str)
+    return match.group(1) if match else None
 
 
 def is_search_input(input_str: str) -> bool:
@@ -426,6 +442,25 @@ def _process_videos_native(
     progress.summary()
 
 
+def process_video_native(video_id: str, output_path: Path, verbose: bool = False):
+    """Process a single video using yt-dlp's native subtitle download."""
+    video_url = f"https://www.youtube.com/watch?v={video_id}"
+
+    # Fetch video title
+    ydl_opts = {'quiet': True, 'no_warnings': True, 'extract_flat': True, 'ignoreerrors': True}
+    title = 'Unknown Title'
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        try:
+            info = ydl.extract_info(video_url, download=False)
+            if info:
+                title = info.get('title', title)
+        except Exception:
+            pass
+
+    print(f"Processing: {title}")
+    _process_videos_native([video_id], {video_id: title}, output_path, f"# {title}\n\n", resuming=False, verbose=verbose)
+
+
 def process_channel_native(channel_input: str, output_path: Path, verbose: bool = False):
     """Process channel using yt-dlp's native subtitle download, one video at a time."""
     channel_url = get_channel_url(channel_input)
@@ -743,7 +778,7 @@ async def process_search(query: str, num_results: int, output_path: Path, progre
 def main():
     parser = argparse.ArgumentParser(
         description='Stream YouTube channel/search transcripts to Markdown',
-        usage='yt-research @channel_name\n       yt-research "search query"\n       yt-research https://www.youtube.com/results?search_query=...'
+        usage='yt-research @channel_name\n       yt-research https://www.youtube.com/watch?v=VIDEO_ID\n       yt-research "search query"\n       yt-research https://www.youtube.com/results?search_query=...'
     )
     parser.add_argument('input', help='Channel (@name or URL), search query, or YouTube search URL')
     parser.add_argument('-o', '--output', help='Output file path')
@@ -753,7 +788,19 @@ def main():
 
     args = parser.parse_args()
 
-    if is_search_input(args.input):
+    if is_video_url(args.input):
+        video_id = get_video_id(args.input)
+        if not video_id:
+            print("Error: Could not extract video ID from URL.")
+            sys.exit(1)
+        if args.output:
+            output_path = Path(args.output)
+        else:
+            output_path = Path.cwd() / f'{video_id}.md'
+
+        print(f"Output: {output_path}")
+        process_video_native(video_id, output_path, verbose=args.verbose)
+    elif is_search_input(args.input):
         query = get_search_query(args.input)
         if args.output:
             output_path = Path(args.output)
