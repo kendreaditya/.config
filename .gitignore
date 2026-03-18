@@ -6,3 +6,6 @@ grammarly-languageserver/
 raycast/
 yarn/
 config-venv/
+zed/prompts/prompts-library-db.0.mdb/
+zed/embeddings/
+zed/.tmp*
