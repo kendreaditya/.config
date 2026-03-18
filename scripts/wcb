@@ -496,7 +496,10 @@ class CrawlerVisualizer:
         for page in recent_pages:
             status_text = self._get_status_text(page.status)
             links = str(page.links_found) if page.links_found else "-"
-            table.add_row(status_text, self._truncate_url(page.url, 60), links)
+            url_display = self._truncate_url(page.url, 60)
+            if page.error and page.status in (PageStatus.FAILED, PageStatus.SKIPPED):
+                url_display += f" [dim red]({page.error[:60]})[/dim red]"
+            table.add_row(status_text, url_display, links)
         return table
 
     def _get_status_icon(self, status: PageStatus) -> str:
