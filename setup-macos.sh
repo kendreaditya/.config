@@ -43,7 +43,7 @@ sh -c 'curl -fLo "${XDG_DATA_HOME:-$HOME/.local/share}"/nvim/site/autoload/plug.
 brew install --cask --overwrite raycast zed todoist tomatobar zoom alt-tab bruno \
   hiddenbar blackhole-2ch ollama amethyst hammerspoon karabiner-elements \
   visual-studio-code google-chrome warp ghostty logseq obsidian postman \
-  protonvpn cloudflare-warp finetune
+  protonvpn cloudflare-warp finetune tailscale
 
 # Install oh-my-zsh
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
