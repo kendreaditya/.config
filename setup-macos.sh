@@ -43,7 +43,7 @@ sh -c 'curl -fLo "${XDG_DATA_HOME:-$HOME/.local/share}"/nvim/site/autoload/plug.
 brew install --cask --overwrite raycast zed todoist tomatobar zoom alt-tab bruno \
   hiddenbar blackhole-2ch ollama amethyst hammerspoon karabiner-elements \
   visual-studio-code google-chrome warp ghostty logseq obsidian postman \
-  protonvpn cloudflare-warp
+  protonvpn cloudflare-warp finetune
 
 # Install oh-my-zsh
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
@@ -68,6 +68,16 @@ for script in ~/.config/scripts/*; do
     ln -sf "$script" ~/.local/bin/"$scriptname"
   fi
 done
+
+# Claude Code behavioral files
+mkdir -p ~/.claude ~/.config/claude/agents
+ln -sf ~/.config/claude/skills ~/.claude/skills
+ln -sf ~/.config/claude/commands ~/.claude/commands
+ln -sf ~/.config/claude/agents ~/.claude/agents
+ln -sf ~/.config/claude/settings.json ~/.claude/settings.json
+
+# Download Claude Code docs locally
+sync-docs
 
 
 # Apply macOS configuration
