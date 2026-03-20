@@ -9,3 +9,13 @@ config-venv/
 zed/prompts/prompts-library-db.0.mdb/
 zed/embeddings/
 zed/.tmp*
+
+# Claude Code - ignore runtime/state, track behavioral files only
+claude/*
+!claude/CLAUDE.md
+!claude/settings.json
+!claude/system-prompt.txt
+!claude/agents/
+!claude/commands/
+!claude/skills/
+claude/docs/

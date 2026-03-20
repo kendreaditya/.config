@@ -59,6 +59,28 @@ The venv at `~/.config/config-venv/` is created by `setup-macos.sh`. `_utils.py:
 
 Dependencies: `rich`, `tiktoken`, `yt-dlp`, `aiohttp`, `aiofiles`, `click`, `tldextract`, `beautifulsoup4`, `markdownify`, `twscrape`.
 
+## Claude Code Config
+
+`~/.config/claude/` stores Claude Code's behavioral files, version-controlled here and symlinked into `~/.claude/`:
+
+| Path | Purpose |
+|------|---------|
+| `claude/settings.json` | Claude Code preferences (plugins, voice, model) |
+| `claude/system-prompt.txt` | Global Claude personality/behavior overrides |
+| `claude/skills/` | Installed skills (56 from skillsmp marketplace) |
+| `claude/commands/` | Custom slash commands (e.g. `/gdrive-read`) |
+| `claude/agents/` | Role/persona prompts — one `.md` per agent type |
+| `claude/docs/` | Local Claude Code docs (generated, not tracked) |
+
+Symlinks: `~/.claude/{skills,commands,settings.json}` → `~/.config/claude/{skills,commands,settings.json}`
+
+```bash
+# Refresh local Claude Code documentation
+sync-docs
+```
+
+`agents/` convention: create `claude/agents/researcher.md`, `claude/agents/coder.md`, etc. with role-specific system prompts.
+
 ## Shell Config
 
 - Main shell config: `.zshrc` (Oh My Zsh, robbyrussell theme)
