@@ -75,6 +75,7 @@ ln -sf ~/.config/claude/skills ~/.claude/skills
 ln -sf ~/.config/claude/commands ~/.claude/commands
 ln -sf ~/.config/claude/agents ~/.claude/agents
 ln -sf ~/.config/claude/settings.json ~/.claude/settings.json
+ln -sf ~/.config/claude/CLAUDE.md ~/.claude/CLAUDE.md
 
 # Download Claude Code docs locally
 sync-docs

@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""Download all Claude Code docs to ~/.config/claude/docs/ as Markdown."""
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(__file__))
+from _utils import ensure_config_venv
+ensure_config_venv()
+
+import re
+import time
+from pathlib import Path
+
+try:
+    import requests
+except ImportError:
+    print("Error: 'requests' not installed. Run: pip install requests")
+    sys.exit(1)
+
+LLMS_TXT_URL = "https://code.claude.com/docs/llms.txt"
+BASE_URL = "https://code.claude.com/docs/en"
+DOCS_DIR = Path.home() / ".config" / "claude" / "docs"
+
+
+def discover_pages():
+    print("Fetching page list from llms.txt...")
+    r = requests.get(LLMS_TXT_URL, timeout=30)
+    r.raise_for_status()
+    pattern = re.compile(r'\[.*?\]\(https://code\.claude\.com/docs/en/([a-z0-9-]+)\.md\)')
+    pages = sorted({m.group(1) for line in r.text.splitlines() if (m := pattern.search(line))})
+    print(f"Found {len(pages)} pages")
+    return pages
+
+
+def download_page(page):
+    url = f"{BASE_URL}/{page}.md"
+    out = DOCS_DIR / f"{page}.md"
+    try:
+        r = requests.get(url, timeout=30)
+        r.raise_for_status()
+        out.write_text(f"<!-- Source: {url} -->\n\n{r.text}", encoding="utf-8")
+        print(f"  + {page}")
+        return True
+    except Exception as e:
+        print(f"  - {page}: {e}")
+        return False
+
+
+def main():
+    DOCS_DIR.mkdir(parents=True, exist_ok=True)
+    pages = sys.argv[1:] or discover_pages()
+    if not pages:
+        print("No pages found.")
+        sys.exit(1)
+    ok = sum(download_page(p) or time.sleep(0.3) or 0 for p in pages)
+    print(f"\n{ok}/{len(pages)} pages saved to {DOCS_DIR}")
+
+
+if __name__ == "__main__":
+    main()
