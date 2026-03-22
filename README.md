@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/banner.jpg" width="200" alt="That's The Way (I Like It) - KC & The Sunshine Band" />
+</p>
+
 # .config dotfiles
 
 Personal dotfiles and macOS environment config for Aditya Kendre. Version-controlled and symlinked into the right places on a fresh machine.
