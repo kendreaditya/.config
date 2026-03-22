@@ -1,0 +1,375 @@
+#!/usr/bin/env python3
+"""levels.fyi CLI — query salary, companies, jobs, benefits, and more."""
+
+import argparse
+import base64
+import gzip
+import hashlib
+import json
+import re
+import sys
+import urllib.parse
+import urllib.request
+import zlib
+
+try:
+    from Crypto.Cipher import AES
+except ImportError:
+    print("Missing pycryptodome. Run: pip install pycryptodome", file=sys.stderr)
+    sys.exit(1)
+
+UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/146.0.0.0 Safari/537.36"
+)
+API_HEADERS = {
+    "accept": "application/json, text/plain, */*",
+    "x-agent": "levelsfyi_website",
+    "User-Agent": UA,
+}
+HTML_HEADERS = {"User-Agent": UA, "Accept-Encoding": "gzip"}
+
+_build_id_cache = None
+
+
+# ---------------------------------------------------------------------------
+# Core helpers
+# ---------------------------------------------------------------------------
+
+def _decrypt(payload: str) -> object:
+    key = base64.b64encode(hashlib.md5(b"levelstothemoon!!").digest()).decode()[:16].encode()
+    decrypted = AES.new(key, AES.MODE_ECB).decrypt(base64.b64decode(payload))
+    return json.loads(zlib.decompress(decrypted, 15))
+
+
+def _api_get(url: str) -> object:
+    req = urllib.request.Request(url, headers=API_HEADERS)
+    data = json.loads(urllib.request.urlopen(req).read())
+    if isinstance(data, dict) and "payload" in data:
+        return _decrypt(data["payload"])
+    return data
+
+
+def _fetch_html(url: str) -> str:
+    req = urllib.request.Request(url, headers=HTML_HEADERS)
+    resp = urllib.request.urlopen(req, timeout=20)
+    raw = resp.read()
+    if resp.headers.get("Content-Encoding") == "gzip":
+        raw = gzip.decompress(raw)
+    return raw.decode(errors="ignore")
+
+
+def _build_id() -> str:
+    global _build_id_cache
+    if _build_id_cache:
+        return _build_id_cache
+    html = _fetch_html("https://www.levels.fyi")
+    m = re.search(r'"buildId":"([^"]+)"', html)
+    if not m:
+        raise RuntimeError("Could not find Next.js buildId")
+    _build_id_cache = m.group(1)
+    return _build_id_cache
+
+
+def _next_data(path: str) -> dict:
+    """Fetch a Next.js data endpoint, returns pageProps."""
+    url = f"https://www.levels.fyi/_next/data/{_build_id()}/{path}"
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    return json.loads(urllib.request.urlopen(req).read())["pageProps"]
+
+
+def _out(data):
+    print(json.dumps(data, indent=2, ensure_ascii=False))
+
+
+# ---------------------------------------------------------------------------
+# Commands
+# ---------------------------------------------------------------------------
+
+def cmd_search_company(args):
+    """Search companies by name (v2 API, encrypted)."""
+    url = f"https://api.levels.fyi/v2/search/entity/company?searchText={urllib.parse.quote(args.query)}"
+    _out(_api_get(url))
+
+
+def cmd_jobs(args):
+    """Search job listings (v1 API, encrypted)."""
+    params = {
+        "limit": args.limit,
+        "limitPerCompany": args.limit_per_company,
+        "offset": args.offset,
+        "sortBy": args.sort,
+    }
+    for i, loc in enumerate(args.location):
+        params[f"locationSlugs[{i}]"] = loc
+    url = f"https://api.levels.fyi/v1/job/search?{urllib.parse.urlencode(params)}"
+    _out(_api_get(url))
+
+
+def cmd_job_family(args):
+    """Info for a job family: companies with levels, median comp, related families.
+    Corresponds to: /t/<slug>?countryId=<id>
+    """
+    path = f"t/{args.slug}.json?countryId={args.country}"
+    props = _next_data(path)
+    result = {
+        "jobFamily": props.get("jobFamily"),
+        "jobFamilySlug": props.get("jobFamilySlug"),
+        "defaultCountryMedian": props.get("defaultCountryMedian"),
+        "companiesWithLevels": props.get("companiesWithLevels"),
+        "jobFamilies": props.get("jobFamilies"),
+    }
+    _out(result)
+
+
+def cmd_locations(args):
+    """List all location slugs grouped by region.
+    Corresponds to: /locations?jobFamily=<family>
+    """
+    path = f"locations.json?jobFamily={urllib.parse.quote(args.job_family)}"
+    props = _next_data(path)
+    _out(props.get("locations", props))
+
+
+def cmd_list_companies(args):
+    """List all companies (slug + name).
+    Corresponds to: /companies
+    """
+    data = _api_get("https://api.levels.fyi/v1/company")
+    if args.search:
+        q = args.search.lower()
+        data = [c for c in data if q in c.get("name", "").lower()]
+    _out(data)
+
+
+def cmd_job_families(args):
+    """List all job family categories.
+    Corresponds to: /t
+    """
+    props = _next_data("t.json")
+    _out(props.get("jobFamilies", props))
+
+
+def cmd_industries(args):
+    """List all industries.
+    Corresponds to: /industry
+    """
+    props = _next_data("industry.json")
+    _out(props.get("industries", props))
+
+
+def cmd_company_salaries(args):
+    """Salary data for a specific company + job family.
+    Corresponds to: /companies/<company>/salaries/<job-family>?country=<id>
+    """
+    path = f"companies/{args.company}/salaries/{args.job_family}.json?country={args.country}"
+    props = _next_data(path)
+    result = {
+        "company": props.get("company", {}).get("name"),
+        "jobFamily": props.get("jobFamily"),
+        "defaultCountry": props.get("defaultCountry"),
+        "averages": props.get("averages"),        # list of per-level averages
+        "percentiles": props.get("percentiles"),  # TC/base/bonus/stock percentiles
+        "companyJfTitles": props.get("companyJfTitles"),  # titles with counts
+        "levels": {
+            k: v for k, v in (props.get("levels") or {}).items()
+            if k in ("job_family", "generic")
+        },
+    }
+    _out(result)
+
+
+def cmd_benefits(args):
+    """Compare benefits for a list of companies (scrapes HTML).
+    Corresponds to: /benefits/?companies=Google,Meta,Microsoft
+    """
+    companies_param = ",".join(args.companies)
+    url = f"https://www.levels.fyi/benefits/?companies={urllib.parse.quote(companies_param, safe=',')}"
+    html = _fetch_html(url)
+
+    # Extract company names from table headers
+    header_companies = re.findall(
+        r'class="company-([A-Za-z][A-Za-z0-9 ]*) company-table-header[^"]*"', html
+    )
+
+    result = {"url": url, "companies": {}}
+
+    # Per-company monetary total: find each hidden input and scan backwards for nearest company class
+    for inp_m in re.finditer(r'id="perks-monetary-value-raw"[^>]+value="([^"]+)"', html):
+        chunk = html[max(0, inp_m.start() - 2000):inp_m.start()]
+        all_cm = list(re.finditer(r'class="(company-[A-Za-z][A-Za-z0-9]*)', chunk))
+        if all_cm:
+            company = all_cm[-1].group(1).replace("company-", "")  # last = nearest
+            result["companies"].setdefault(company, {})["estimated_total_value"] = int(inp_m.group(1))
+
+    # Per-category per-company benefits.
+    # Strategy: find benefit-column tds to get category names (short), then within each row
+    # extract company cells. We work row-by-row since each row spans all companies.
+    rows = re.split(r'<tr[^>]*>', html)
+    for row in rows[1:]:
+        # Extract benefit-column td content (short ~300 chars)
+        bc_m = re.search(r'<td[^>]*benefit-column[^>]*>(.*?)</td>', row, re.DOTALL)
+        if not bc_m:
+            continue
+        # Category name is in the second <span> (first has the icon)
+        spans = re.findall(r'<span[^>]*>([^<]+)</span>', bc_m.group(1))
+        category = next((s.strip() for s in spans if s.strip() and len(s.strip()) > 2), None)
+        if not category or category in ("Est. Total Value",):
+            continue
+
+        # Find requested company cells using anchored search per-company
+        for requested_co in args.companies:
+            safe = re.escape(requested_co)
+            # Find the company's <td> in this row
+            cell_m = re.search(
+                rf'<td[^>]+class="company-{safe}[^"]*"[^>]*>(.*?)</td>', row, re.DOTALL
+            )
+            if not cell_m:
+                continue
+            ul_m = re.search(r'<ul[^>]*>(.*?)</ul>', cell_m.group(1), re.DOTALL)
+            if not ul_m:
+                continue
+            items = re.findall(r'<a[^>]+class="perk-url"[^>]*>([^<]+)</a>', ul_m.group(1))
+            items = [i.strip() for i in items if i.strip()]
+            if items:
+                result["companies"].setdefault(requested_co, {}).setdefault("benefits", {})[category] = items
+
+    # Keep only requested companies in result (monetary values + benefits already keyed by requested name)
+    # The monetary scan uses HTML class names (e.g. "Google"), benefits uses args.companies directly.
+    # Align monetary totals by matching class names to requested company names.
+    aligned = {}
+    for req_co in args.companies:
+        # Exact class match or class is prefix of requested (e.g. "Facebook" == "Facebook")
+        for cls_co, data in result["companies"].items():
+            if cls_co.lower() == req_co.lower() or req_co.lower().startswith(cls_co.lower()):
+                merged = aligned.get(req_co, {})
+                merged.update(data)
+                aligned[req_co] = merged
+                break
+        if req_co in result["companies"]:
+            aligned.setdefault(req_co, {}).update(result["companies"][req_co])
+    result["companies"] = aligned
+
+    _out(result)
+
+
+def cmd_leaderboard(args):
+    """Top paying companies leaderboard (scrapes HTML).
+    Corresponds to: /leaderboard/<jobFamily>/<level>/<locationType>/<location>/
+    """
+    url = (
+        f"https://www.levels.fyi/leaderboard/"
+        f"{urllib.parse.quote(args.job_family)}/"
+        f"{urllib.parse.quote(args.level)}/"
+        f"{urllib.parse.quote(args.location_type)}/"
+        f"{urllib.parse.quote(args.location)}/"
+    )
+    html = _fetch_html(url)
+
+    rows = re.findall(r'<tr[^>]*>(.*?)</tr>', html, re.DOTALL)
+    entries = []
+    for row in rows:
+        rank_m = re.search(r'<strong>(\d+)</strong>', row)
+        if not rank_m:
+            continue
+        company_m = re.search(r'alt="([^"]+)"', row)
+        # Title: text in the d-none d-sm-table-cell link
+        title_m = re.search(r'd-none d-sm-table-cell[^>]*>.*?<a[^>]*>([^<]+)</a>', row, re.DOTALL)
+        # Comp: hidden inputs (class has two tokens: "d-none total-comp")
+        total_m = re.search(r'class="d-none total-comp"\s+value="([^"]+)"', row)
+        base_m  = re.search(r'class="d-none base-salary"\s+value="([^"]+)"', row)
+        stock_m = re.search(r'class="d-none stock-grant"\s+value="([^"]+)"', row)
+        bonus_m = re.search(r'class="d-none yearly-bonus"\s+value="([^"]+)"', row)
+        slug_m  = re.search(r'href="/company/([^/]+)/salaries/"', row)
+        entries.append({
+            "rank": int(rank_m.group(1)),
+            "company": company_m.group(1) if company_m else None,
+            "slug": slug_m.group(1) if slug_m else None,
+            "title": title_m.group(1).strip() if title_m else None,
+            "total_comp": int(total_m.group(1)) if total_m else None,
+            "base": int(base_m.group(1)) if base_m else None,
+            "stock": int(stock_m.group(1)) if stock_m else None,
+            "bonus": int(bonus_m.group(1)) if bonus_m else None,
+        })
+
+    _out({"url": url, "entries": entries})
+
+
+# ---------------------------------------------------------------------------
+# CLI definition
+# ---------------------------------------------------------------------------
+
+def main():
+    parser = argparse.ArgumentParser(prog="levels", description="levels.fyi CLI")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    # --- search-company ---
+    p = sub.add_parser("search-company", help="Search companies by name")
+    p.add_argument("query", help="Search text (e.g. 'google')")
+
+    # --- jobs ---
+    p = sub.add_parser("jobs", help="Search job listings")
+    p.add_argument("-l", "--location", nargs="+", default=["san-francisco-bay-area"], metavar="SLUG")
+    p.add_argument("--limit", type=int, default=20)
+    p.add_argument("--limit-per-company", type=int, default=5)
+    p.add_argument("--offset", type=int, default=0)
+    p.add_argument("--sort", default="relevance", choices=["relevance", "recent"])
+
+    # --- job-family ---
+    p = sub.add_parser("job-family", help="Info for a job family (/t/<slug>?countryId=<id>)")
+    p.add_argument("slug", nargs="?", default="software-engineer", help="Job family slug (default: software-engineer)")
+    p.add_argument("--country", default="254", help="Country ID (default: 254 = US)")
+
+    # --- locations ---
+    p = sub.add_parser("locations", help="List locations by region (/locations)")
+    p.add_argument("--job-family", default="Software Engineer", metavar="FAMILY")
+
+    # --- list-companies ---
+    p = sub.add_parser("list-companies", help="List all companies (/companies)")
+    p.add_argument("--search", metavar="QUERY", help="Filter by name")
+
+    # --- job-families ---
+    sub.add_parser("job-families", help="List all job family categories (/t)")
+
+    # --- industries ---
+    sub.add_parser("industries", help="List all industries (/industry)")
+
+    # --- company-salaries ---
+    p = sub.add_parser("company-salaries", help="Salary data for a company + job family (/companies/<co>/salaries/<jf>)")
+    p.add_argument("company", help="Company slug (e.g. 'google')")
+    p.add_argument("--job-family", default="software-engineer", metavar="SLUG")
+    p.add_argument("--country", default="254", help="Country ID (default: 254 = US)")
+
+    # --- benefits ---
+    p = sub.add_parser("benefits", help="Compare company benefits (/benefits/)")
+    p.add_argument(
+        "--companies", nargs="+", default=["Google", "Meta", "Microsoft"],
+        metavar="COMPANY", help="Company display names (default: Google Meta Microsoft)"
+    )
+
+    # --- leaderboard ---
+    p = sub.add_parser("leaderboard", help="Top paying companies leaderboard (/leaderboard/)")
+    p.add_argument("--job-family", default="Software-Engineer", metavar="FAMILY")
+    p.add_argument("--level", default="Entry-Level-Engineer", metavar="LEVEL")
+    p.add_argument("--location-type", default="country", choices=["country", "metro"])
+    p.add_argument("--location", default="United-States", metavar="LOCATION")
+
+    args = parser.parse_args()
+    dispatch = {
+        "search-company": cmd_search_company,
+        "jobs": cmd_jobs,
+        "job-family": cmd_job_family,
+        "locations": cmd_locations,
+        "list-companies": cmd_list_companies,
+        "job-families": cmd_job_families,
+        "industries": cmd_industries,
+        "benefits": cmd_benefits,
+        "leaderboard": cmd_leaderboard,
+        "company-salaries": cmd_company_salaries,
+    }
+    dispatch[args.cmd](args)
+
+
+if __name__ == "__main__":
+    main()
