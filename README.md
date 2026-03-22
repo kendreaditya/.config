@@ -1,13 +1,5 @@
 <p align="center">
-  <img src="assets/banner.jpg" width="200" alt="That's The Way (I Like It) - KC & The Sunshine Band" />
-</p>
-
-<p align="center">
-  <audio controls>
-    <source src="assets/thats-the-way.mp3" type="audio/mpeg" />
-  </audio>
-  <br/>
-  <a href="assets/thats-the-way.mp3">▶ That's The Way (I Like It) — KC & The Sunshine Band</a>
+  <video src="https://github.com/user-attachments/assets/3be1b63d-0be1-4f7a-8101-d3b6a09972f9" width="300" controls></video>
 </p>
 
 # .config dotfiles
