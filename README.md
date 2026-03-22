@@ -1,72 +1,69 @@
-# 🗂 .config dotfiles
+# .config dotfiles
 
-- GitHub: auth for Github.com
-- Neovim: fresh-vim editor
-- skhd (macos): a hotkey daemon
-- terminal (windows): windows terminal settings
-- vscode: VSCode setting
-- yabai (macos): Tilling window managers
+Personal dotfiles and macOS environment config for Aditya Kendre. Version-controlled and symlinked into the right places on a fresh machine.
 
-# 🚀 Package Installer
+## Quick Start (new machine)
 
-This script is a package installer that automatically installs common development packages based on the operating system you are using. It simplifies the installation process by providing a centralized script that handles the installation of various packages.
+```bash
+git clone git@github.com:kendreaditya/.config.git ~/.config
+~/.config/setup-macos.sh
+```
 
-## Prerequisites
+That one script handles everything: Homebrew, packages, casks, Oh My Zsh, Python venv, symlinks, and macOS system defaults.
 
-- Python 3.x
-- `pip` package manager
+---
 
-## Installation
+## What's Here
 
-1. Clone the repository or download the script `package_installer.py` to your local machine.
+### `setup-macos.sh`
+Full macOS setup script. Installs:
+- **Homebrew formulae:** imagemagick, ffmpeg, gh, fzf, neovim, tmux, atuin, ripgrep, himalaya, imsg, and more
+- **Casks:** Raycast, Zed, Ghostty, Obsidian, Warp, Tailscale, and more
+- **Oh My Zsh**, Python venv, PATH symlinks, macOS system defaults
 
-2. Open a terminal or command prompt and navigate to the directory where the script is located.
-
-3. Install the required Python dependencies by running the following command:
-
-   ```shell
-   pip install -r requirements.txt
-   ```
-
-## Usage
-
-1. Open the apps.json file and update it with the desired packages and their installation commands for each operating system.
-2. Execute the script by running the following command:
-   ```shell
-   python package_installer.py
-   ```
-3. The script will automatically detect the current operating system and proceed to install the specified packages accordingly. Note: Depending on your system's configuration, you may need to run the script with administrative privileges (sudo or "Run as administrator") to ensure successful installation.
-
-4. The script will display the progress of each package installation in the console. Once the installation process is complete, you will see a summary of the installed packages.
-
-## Customization
-
-- kbase_packages: This section of the apps.json file contains the base packages to be installed on all operating systems. You can modify the commands for each package according to your needs.
-
-- os_specific: This section of the apps.json file contains operating system-specific commands. You can add or remove operating systems and specify their respective installation commands for specific packages.
-
-## Contributing
-
-Contributions are welcome! If you have any suggestions, bug reports, or feature requests, please open an issue or submit a pull request on the GitHub repository.
-
-## Custom CLI Scripts
-
-Located in `scripts/` - add to PATH: `export PATH="$HOME/.config/scripts:$PATH"`
+### `scripts/`
+Custom CLI tools installed to `~/.local/bin` via symlinks.
 
 | Script | Description | Usage |
-|--------|-------------|-------|
-| `yt-research` | Download YouTube channel transcripts to Markdown | `yt-research @channel_name` |
-| `shortn` | Compress text files to fit token limits (TextRank) | `shortn input.md -t 8000` |
-| `url` | Create HTML redirect files | `url example.com` |
+|---|---|---|
+| `wcb` | Async web scraper → LLM-optimized markdown | `wcb https://docs.example.com` |
+| `yt-research` | YouTube channel/search transcripts → markdown | `yt-research @channel_name` |
+| `shortn` | Compress markdown to token limit (TextRank) | `shortn input.md -t 8000` |
+| `tw-research` | Twitter/X timeline → markdown | `tw-research @username` |
+| `url` | Generate HTML redirect files | `url example.com` |
 
-See `skills.md` for full documentation.
+Shared modules: `_utils.py` (venv, progress, markdown), `_context.py` (tokenizer wrappers).
 
-## Setup Instructions
- - alttab settings
- - raycast settings
- - neovim plug install
- - chrome
-   - per as perpleixty search
- - loginto todoist + quick capture shortcut
+### `claude/`
+Claude Code behavioral config — symlinked into `~/.claude/` by `setup-macos.sh`.
 
- - vscode settings
+| Path | Purpose |
+|---|---|
+| `claude/CLAUDE.md` | Global Claude instructions |
+| `claude/settings.json` | Claude Code preferences |
+| `claude/system-prompt.txt` | Global personality/behavior overrides |
+| `claude/skills/` | 60 installed agent skills |
+| `claude/commands/` | Custom slash commands |
+| `claude/agents/` | Role-specific agent personas |
+
+> `claude/docs/` is gitignored — regenerate with `sync-docs`.
+
+### Shell
+- `.zshrc` — Oh My Zsh, robbyrussell theme, PATH, aliases
+- `ZDOTDIR=$HOME/.config` set in `~/.zshenv` so zsh reads from here
+
+### `requirements.txt`
+Python deps for the scripts venv at `~/.config/config-venv/`.
+
+---
+
+## Manual Steps After Setup
+
+After running `setup-macos.sh`, a few things need manual setup:
+
+- **Raycast** — restore settings / extensions
+- **AltTab** — configure window switcher preferences
+- **Chrome** — sign in, set Perplexity as default search
+- **Todoist** — sign in, set Quick Capture shortcut
+- **Neovim** — run `:PlugInstall` on first launch
+- **Claude Code** — run `sync-docs` to regenerate local docs

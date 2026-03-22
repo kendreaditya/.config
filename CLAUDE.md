@@ -67,10 +67,10 @@ Dependencies: `rich`, `tiktoken`, `yt-dlp`, `aiohttp`, `aiofiles`, `click`, `tld
 |------|---------|
 | `claude/settings.json` | Claude Code preferences (plugins, voice, model) |
 | `claude/system-prompt.txt` | Global Claude personality/behavior overrides |
-| `claude/skills/` | Installed skills (56 from skillsmp marketplace) |
+| `claude/skills/` | Installed skills (60 from skillsmp marketplace) |
 | `claude/commands/` | Custom slash commands (e.g. `/gdrive-read`) |
 | `claude/agents/` | Role/persona prompts — one `.md` per agent type |
-| `claude/docs/` | Local Claude Code docs (generated, not tracked) |
+| `claude/docs/` | Local Claude Code docs (generated, gitignored — run `sync-docs` to regenerate) |
 
 Symlinks: `~/.claude/{skills,commands,settings.json}` → `~/.config/claude/{skills,commands,settings.json}`
 
