@@ -18,4 +18,5 @@ claude/*
 !claude/agents/
 !claude/commands/
 !claude/skills/
+!claude/memory/
 claude/docs/
