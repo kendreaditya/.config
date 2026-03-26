@@ -46,14 +46,16 @@ td completed --since 2026-01-01   # Completed since date
 
 ## Adding Tasks
 
+> **REQUIRED FIELDS for every new task:** Always include `--due`, `--priority`, `--project`, and `--duration`. Never create a task without all four. If the user hasn't specified one, infer a sensible default (e.g. `--priority p3`, `--duration 30m`) or ask before creating.
+
 Prefer `td task add` with structured flags for reliability:
 
 ```bash
-td task add "Review PR" --due "today" --priority p1 --project "Work"
-td task add "Call mom" --due "sunday" --labels "family"
-td task add "Prep slides" --project "Work" --section "Q1" --order 0  # 0 = top
-td task add "Subtask" --parent <ref>
-td task add "Meeting" --due "tomorrow 10am" --duration 1h
+# Minimum required pattern — all four fields every time:
+td task add "Review PR" --due "today" --priority p1 --project "Work" --duration 1h
+td task add "Call mom" --due "sunday" --priority p2 --project "Personal Areas" --duration 30m
+td task add "Prep slides" --project "Work" --due "tomorrow" --priority p2 --duration 2h --section "Q1" --order 0
+td task add "Subtask" --parent <ref> --due "today" --priority p3 --project "Work" --duration 15m
 ```
 
 Quick add (natural language, for humans — avoid in automation):
