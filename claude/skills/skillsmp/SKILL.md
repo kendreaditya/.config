@@ -15,11 +15,29 @@ Search for Claude Code skills and agent capabilities from the SkillsMP marketpla
 
 ## Execution
 
-- Use `web_fetch` to call the API.
-- **Authentication**: Include the `Authorization: Bearer sk_live_skillsmp_XluxGQvRNlyDKs0Edv8OaXsxC3U6RBfmuYMU8WQvdQ0` header.
+- Use `Bash` with `curl` — **never** `WebFetch` (it cannot send custom headers, causing 401).
+- **Authentication**: Pass the Bearer token via `-H` flag.
 - **Search Logic**:
   - Keyword: `https://skillsmp.com/api/v1/skills/search?q={query}&sortBy=stars`
   - AI Semantic: `https://skillsmp.com/api/v1/skills/ai-search?q={url_encoded_query}`
+
+### Bash curl template
+
+```bash
+curl -s "https://skillsmp.com/api/v1/skills/search?q=QUERY&sortBy=stars" \
+  -H "Authorization: Bearer sk_live_skillsmp_XluxGQvRNlyDKs0Edv8OaXsxC3U6RBfmuYMU8WQvdQ0" | \
+  python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+skills = d['data']['skills']
+print(f'Total: {len(skills)}\n')
+for s in skills:
+    print(f\"★ {s.get('stars',0):6}  {s['name']} by {s['author']}\")
+    print(f\"         {s['description'][:160]}\")
+    print(f\"         {s['githubUrl']}\")
+    print()
+"
+```
 
 ## Detailed Documentation
 

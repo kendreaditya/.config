@@ -13,8 +13,11 @@
     }
   },
   "voiceEnabled": true,
+  "autoMemoryDirectory": "~/.claude/memory",
+  "autoDreamEnabled": true,
   "skipDangerousModePermissionPrompt": true,
   "feedbackSurveyState": {
     "lastShownTime": 1754041016117
-  }
+  },
+  "cleanupPeriodDays": 99999
 }
