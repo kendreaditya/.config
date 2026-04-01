@@ -20,3 +20,6 @@ claude/*
 !claude/skills/
 !claude/memory/
 claude/docs/
+
+# AssemblyAI - contains API token
+/assemblyai/

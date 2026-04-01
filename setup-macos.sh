@@ -33,10 +33,11 @@ export HOMEBREW_NO_AUTO_UPDATE=1
 
 # Install all formulae in one call (resolves deps once, downloads in parallel)
 brew tap steipete/tap
+brew tap assemblyai/assemblyai
 brew install imagemagick cmake gcc ffmpeg gh wget curl python@3.12 \
   fzf neovim yt-dlp yq tmux atuin vim neofetch node git zsh ripgrep \
   ocrmypdf tesseract graphviz fswatch nvm deno oven-sh/bun/bun ncdu himalaya \
-  steipete/tap/gogcli steipete/tap/imsg
+  steipete/tap/gogcli steipete/tap/imsg assemblyai
 
 # Install vim-plug for neovim
 sh -c 'curl -fLo "${XDG_DATA_HOME:-$HOME/.local/share}"/nvim/site/autoload/plug.vim --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'

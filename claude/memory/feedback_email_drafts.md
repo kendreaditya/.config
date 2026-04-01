@@ -1,11 +1,11 @@
 ---
-name: feedback-email-drafts
-description: Always draft emails first and wait for explicit "send" before sending — never auto-send
+name: Email Drafts & Tone
+description: Always draft emails first, wait for explicit "send", casual tone, no dashes, no jargon
 type: feedback
 ---
 
-Always draft emails before sending. Never send an email without explicit user approval ("send").
+Always draft emails before sending. Never send an email without explicit user approval ("send"). Never send emails proactively.
 
-**Why:** Aditya consistently says "don't send yet just draft", "draft and only draft first", "send" as a separate step. He reviews and edits drafts before approving sends.
+**Why:** User consistently requires draft-then-send workflow. On 2026-03-25, an RSU equity email was sent without explicit approval — user was upset. Emails to employers, attorneys, and contacts have real consequences.
 
-**How to apply:** When composing emails via gog, always present the draft first and wait for the user to say "send" before executing. This applies to all email sending, not just sensitive ones.
+**How to apply:** Present the draft, wait for "send" or equivalent confirmation. Keep tone casual and friendly — no dashes/em-dashes, no jargon phrases like "quote-to-cash workflow", use simple direct language ("Would love to chat" not "I would be delighted to discuss"). This applies to ALL email sending via gog.
