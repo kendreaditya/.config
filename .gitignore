@@ -23,3 +23,26 @@ claude/docs/
 
 # AssemblyAI - contains API token
 /assemblyai/
+
+# macOS / system generated
+.DS_Store
+.zcompdump*
+.zsh_history
+.zsh_sessions/
+
+# Python
+__pycache__/
+*.pyc
+
+# App state (not config we maintain)
+astap/
+browseruse/
+configstore/
+darktable/
+git/
+himalaya/
+iterm2/
+waveterm/
+
+# Packaged skill files
+*.skill
