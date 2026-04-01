@@ -23,7 +23,7 @@ set completeopt=noinsert,menuone,noselect
 set ignorecase
 set splitright
 set updatetime=50
-set pastetoggle=<C-P>
+nnoremap <C-P> :set paste!<CR>
 
 tnoremap jk <C-\><C-n> 
 inoremap jk <ESC>

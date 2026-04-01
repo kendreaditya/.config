@@ -40,9 +40,12 @@ Common commands
 - Gmail send (multi-line): `gog gmail send --to a@b.com --subject "Hi" --body-file ./message.txt`
 - Gmail send (stdin): `gog gmail send --to a@b.com --subject "Hi" --body-file -`
 - Gmail send (HTML): `gog gmail send --to a@b.com --subject "Hi" --body-html "<p>Hello</p>"`
+- Gmail send (with attachments): `gog gmail send --to a@b.com --subject "Hi" --body "See attached" --attach /path/to/file.pdf --attach /path/to/other.pdf`
 - Gmail draft: `gog gmail drafts create --to a@b.com --subject "Hi" --body-file ./message.txt`
 - Gmail send draft: `gog gmail drafts send <draftId>`
 - Gmail reply: `gog gmail send --to a@b.com --subject "Re: Hi" --body "Reply" --reply-to-message-id <msgId>`
+- Gmail reply (in thread): `gog gmail send --to a@b.com --subject "Re: Hi" --body "Reply" --thread-id <threadId> --reply-to-message-id <msgId>`
+- Gmail archive: `gog gmail archive <messageId>`
 - Calendar list events: `gog calendar events <calendarId> --from <iso> --to <iso>`
 - Calendar create event: `gog calendar create <calendarId> --summary "Title" --from <iso> --to <iso>`
 - Calendar create with color: `gog calendar create <calendarId> --summary "Title" --from <iso> --to <iso> --event-color 7`
