@@ -3,7 +3,9 @@
   "cleanupPeriodDays": 99999,
   "enabledPlugins": {
     "swift-lsp@claude-plugins-official": true,
-    "skillsmp@local": true
+    "skillsmp@local": true,
+    "figma@claude-plugins-official": true,
+    "vercel@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "local": {
