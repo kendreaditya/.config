@@ -39,6 +39,9 @@ brew install imagemagick cmake gcc ffmpeg gh wget curl python@3.12 \
   ocrmypdf tesseract graphviz fswatch nvm deno oven-sh/bun/bun ncdu himalaya \
   steipete/tap/gogcli steipete/tap/imsg assemblyai
 
+# Install global npm CLIs
+npm install -g wrangler vercel pnpm typescript tailwindcss eslint yarn
+
 # Install vim-plug for neovim
 sh -c 'curl -fLo "${XDG_DATA_HOME:-$HOME/.local/share}"/nvim/site/autoload/plug.vim --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'
 
