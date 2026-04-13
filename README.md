@@ -8,12 +8,18 @@ Personal dotfiles and macOS environment config for Aditya Kendre. Version-contro
 
 ## Quick Start (new machine)
 
+**One-liner — no git required:**
+```bash
+curl -sSL https://raw.githubusercontent.com/kendreaditya/.config/main/install.sh | bash
+```
+
+Or clone manually if you prefer SSH:
 ```bash
 git clone git@github.com:kendreaditya/.config.git ~/.config
 ~/.config/setup-macos.sh
 ```
 
-That one script handles everything: Homebrew, packages, casks, Oh My Zsh, Python venv, symlinks, and macOS system defaults.
+The bootstrap script (`install.sh`) installs Xcode CLT if missing, clones this repo to `~/.config`, then runs `setup-macos.sh` which handles everything: Homebrew, packages, casks, Oh My Zsh, Python venv, symlinks, and macOS system defaults.
 
 ---
 
