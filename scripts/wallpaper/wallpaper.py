@@ -244,16 +244,61 @@ def download(cand: dict) -> Path:
     return out
 
 
+def _sync_spaces() -> None:
+    """Force every Space and Display to use the same wallpaper config.
+
+    On macOS Tahoe the wallpaper agent stores per-Space overrides in
+    Index.plist. Even with 'Show on all Spaces' toggled, a programmatic
+    setter only updates the current Space's entry; others stay stale.
+    This copies the AllSpacesAndDisplays entry into every Spaces/* and
+    Displays/* entry, then restarts the wallpaper agent.
+    """
+    import plistlib
+    store = Path.home() / "Library/Application Support/com.apple.wallpaper/Store/Index.plist"
+    if not store.exists():
+        return
+    try:
+        data = plistlib.loads(store.read_bytes())
+    except Exception as e:
+        log(f"  space sync: plist read failed: {e}")
+        return
+    source = data.get("AllSpacesAndDisplays") or data.get("SystemDefault")
+    if not source:
+        return
+
+    def overwrite_desktop(container: dict) -> None:
+        if "Desktop" in source and "Desktop" in container:
+            container["Desktop"]["Content"] = source["Desktop"]["Content"]
+
+    for space in (data.get("Spaces") or {}).values():
+        if "Default" in space:
+            overwrite_desktop(space["Default"])
+        for display in (space.get("Displays") or {}).values():
+            overwrite_desktop(display)
+    for display in (data.get("Displays") or {}).values():
+        overwrite_desktop(display)
+
+    try:
+        store.write_bytes(plistlib.dumps(data, fmt=plistlib.FMT_BINARY))
+    except Exception as e:
+        log(f"  space sync: plist write failed: {e}")
+        return
+    subprocess.run(["killall", "WallpaperAgent"], check=False,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    log("  space sync: rewrote Index.plist and restarted WallpaperAgent")
+
+
 def set_wallpaper(path: Path) -> None:
-    """Prefer desktoppr (uses NSWorkspace, respects 'Show on all Spaces').
-    Fall back to AppleScript if desktoppr isn't installed."""
+    """Prefer desktoppr (uses NSWorkspace). Fall back to AppleScript."""
     for cmd in (["/usr/local/bin/desktoppr", "all", str(path)],
                 ["/opt/homebrew/bin/desktoppr", "all", str(path)]):
         if Path(cmd[0]).exists():
             subprocess.run(cmd, check=True)
+            _sync_spaces()
             return
     script = f'tell application "System Events" to tell every desktop to set picture to "{path}"'
     subprocess.run(["osascript", "-e", script], check=True)
+    _sync_spaces()
 
 
 def cleanup(keep: Path) -> None:
