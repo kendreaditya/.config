@@ -184,12 +184,20 @@ def display_ratio() -> float:
     return 16 / 10
 
 
-def pick(candidates: list[dict], target: float, shuffle: bool = True) -> dict | None:
+def pick(candidates: list[dict], target: float) -> dict | None:
+    """Pick a random source first, then the best aspect-ratio fit within it.
+
+    Rotating by source keeps variety — otherwise whichever source has more
+    widescreen images would dominate.
+    """
     if not candidates:
         return None
-    if shuffle:
-        random.shuffle(candidates)
-    return min(candidates, key=lambda c: abs(c["w"] / c["h"] - target))
+    by_source: dict[str, list[dict]] = {}
+    for c in candidates:
+        by_source.setdefault(c["source"], []).append(c)
+    source = random.choice(list(by_source.keys()))
+    log(f"rolled source: {source} ({len(by_source[source])} in pool)")
+    return min(by_source[source], key=lambda c: abs(c["w"] / c["h"] - target))
 
 
 def download(cand: dict) -> Path:
@@ -205,6 +213,19 @@ def download(cand: dict) -> Path:
 def set_wallpaper(path: Path) -> None:
     script = f'tell application "System Events" to tell every desktop to set picture to "{path}"'
     subprocess.run(["osascript", "-e", script], check=True)
+
+
+def cleanup(keep: Path) -> None:
+    """Delete previously downloaded wallpapers, keeping only the current one."""
+    for f in DEST.iterdir():
+        if f == keep or f == LOG or f.is_dir():
+            continue
+        if f.suffix.lower() in {".jpg", ".jpeg", ".png"}:
+            try:
+                f.unlink()
+                log(f"cleaned: {f.name}")
+            except Exception as e:
+                log(f"cleanup failed {f.name}: {e}")
 
 
 def main() -> int:
@@ -228,6 +249,7 @@ def main() -> int:
     path = download(chosen)
     set_wallpaper(path)
     log(f"wallpaper set: {path}")
+    cleanup(keep=path)
     return 0
 
 
