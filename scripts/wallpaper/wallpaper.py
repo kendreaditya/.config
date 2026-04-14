@@ -262,13 +262,15 @@ def _sync_spaces() -> None:
     except Exception as e:
         log(f"  space sync: plist read failed: {e}")
         return
-    source = data.get("AllSpacesAndDisplays") or data.get("SystemDefault")
-    if not source:
+    # SystemDefault carries Desktop.Content; AllSpacesAndDisplays only has Idle.
+    source = data.get("SystemDefault")
+    if not source or "Desktop" not in source:
         return
+    src_content = source["Desktop"]["Content"]
 
     def overwrite_desktop(container: dict) -> None:
-        if "Desktop" in source and "Desktop" in container:
-            container["Desktop"]["Content"] = source["Desktop"]["Content"]
+        if "Desktop" in container:
+            container["Desktop"]["Content"] = src_content
 
     for space in (data.get("Spaces") or {}).values():
         if "Default" in space:
