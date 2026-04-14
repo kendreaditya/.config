@@ -2,7 +2,7 @@
   <img src="assets/config-logo.png" alt=".config" width="400" />
 </p>
 
-<p align="center">Personal dotfiles and macOS environment for Aditya Kendre.</p>
+<p align="center">Personal dotfiles and cross-platform dev environment.</p>
 
 <div align="center">
   <video src="https://github.com/user-attachments/assets/3be1b63d-0be1-4f7a-8101-d3b6a09972f9" width="300" controls></video>
@@ -10,17 +10,25 @@
 
 ## Quick Start
 
+**macOS / Linux:**
 ```bash
 curl -sSL https://raw.githubusercontent.com/kendreaditya/.config/main/install.sh | bash
 ```
 
-Installs Xcode CLT if missing, clones this repo to `~/.config`, then runs `setup-macos.sh`.
+**Windows (PowerShell, Admin):**
+```powershell
+irm https://raw.githubusercontent.com/kendreaditya/.config/main/install.ps1 | iex
+```
+
+The bootstrap auto-detects the platform, installs prereqs (Xcode CLT / git), clones this repo to `~/.config`, then runs the matching `setup-*` script.
 
 ## What gets installed
 
-- **Homebrew** formulae + casks (neovim, tmux, ghostty, raycast, zed, etc.)
-- **Mac App Store** apps via `mas` (Tailscale)
+- **Package manager native** — Homebrew (macOS), apt/snap (Linux), winget (Windows)
+- **Core CLIs** — neovim, tmux, fzf, ripgrep, gh, fastfetch, atuin, yq, yt-dlp
+- **Runtimes** — Node, Python, Bun, Deno
+- **Apps** — VS Code, Chrome, Obsidian, Postman, Raycast/Ulauncher, Zoom, Tailscale
 - **Claude Code CLI**, Oh My Zsh, npm globals, Python venv, vim-plug
-- **Fonts** from `assets/fonts/` → `~/Library/Fonts/`
-- **macOS defaults** — dock, finder, sidebar, TouchID for sudo
+- **Fonts** from `assets/fonts/` → installed to the OS font directory
+- **System defaults** — dock/finder/sidebar (macOS), GNOME settings (Linux), PowerToys + PSReadLine (Windows)
 - **Symlinks** — scripts to `~/.local/bin`, Claude config to `~/.claude/`
