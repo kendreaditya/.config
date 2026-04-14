@@ -4,9 +4,9 @@
 
 <p align="center">Personal dotfiles and macOS environment for Aditya Kendre.</p>
 
-<p align="center">
+<div align="center">
   <video src="https://github.com/user-attachments/assets/3be1b63d-0be1-4f7a-8101-d3b6a09972f9" width="300" controls></video>
-</p>
+</div>
 
 ## Quick Start
 
