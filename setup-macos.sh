@@ -93,6 +93,17 @@ for script in ~/.config/scripts/*; do
   fi
 done
 
+# LaunchAgents (symlinked from ~/.config so edits land in one place)
+mkdir -p ~/Library/LaunchAgents
+for plist in ~/.config/scripts/*/*.plist; do
+  [ -f "$plist" ] || continue
+  label=$(basename "$plist")
+  target="$HOME/Library/LaunchAgents/$label"
+  ln -sfn "$plist" "$target"
+  launchctl unload "$target" 2>/dev/null || true
+  launchctl load "$target"
+done
+
 # Claude Code behavioral files
 mkdir -p ~/.claude ~/.config/claude/agents
 ln -sfn ~/.config/claude/skills ~/.claude/skills
