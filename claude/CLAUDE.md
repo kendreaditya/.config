@@ -23,3 +23,12 @@ Custom agent personas live in `~/.config/claude/agents/` (symlinked to `~/.claud
 
 - Skills: `~/.claude/skills/` → `~/.config/claude/skills/`
 - Commands: `~/.claude/commands/` → `~/.config/claude/commands/`
+
+## Python Environment
+
+System Python is PEP-668 externally-managed. Use the shared venv at `~/workspace/.venv` for any `pip install` or running scripts that need third-party packages:
+
+- Install: `~/workspace/.venv/bin/pip install <pkg>`
+- Run: `~/workspace/.venv/bin/python <script.py>`
+
+Do not use `--break-system-packages` or `--user` against system Python.

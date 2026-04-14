@@ -5,13 +5,20 @@
     "swift-lsp@claude-plugins-official": true,
     "skillsmp@local": true,
     "figma@claude-plugins-official": true,
-    "vercel@claude-plugins-official": true
+    "vercel@claude-plugins-official": true,
+    "warp@claude-code-warp": true
   },
   "extraKnownMarketplaces": {
     "local": {
       "source": {
         "source": "directory",
         "path": "/Users/kendreaditya/.claude/plugins/local"
+      }
+    },
+    "claude-code-warp": {
+      "source": {
+        "source": "github",
+        "repo": "warpdotdev/claude-code-warp"
       }
     }
   },
