@@ -52,7 +52,7 @@ sh -c 'curl -fLo "${XDG_DATA_HOME:-$HOME/.local/share}"/nvim/site/autoload/plug.
 brew install --cask --force raycast zed todoist tomatobar zoom alt-tab bruno \
   hiddenbar blackhole-2ch ollama amethyst hammerspoon karabiner-elements \
   visual-studio-code google-chrome warp ghostty logseq obsidian postman \
-  protonvpn cloudflare-warp finetune desktoppr
+  protonvpn cloudflare-warp finetune
 
 # Install Mac App Store apps (requires App Store sign-in)
 mas install 1475387142  # Tailscale

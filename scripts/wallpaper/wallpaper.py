@@ -291,15 +291,24 @@ def _sync_spaces() -> None:
 
 
 def set_wallpaper(path: Path) -> None:
-    """Prefer desktoppr (uses NSWorkspace). Fall back to AppleScript."""
-    for cmd in (["/usr/local/bin/desktoppr", "all", str(path)],
-                ["/opt/homebrew/bin/desktoppr", "all", str(path)]):
-        if Path(cmd[0]).exists():
-            subprocess.run(cmd, check=True)
-            _sync_spaces()
-            return
-    script = f'tell application "System Events" to tell every desktop to set picture to "{path}"'
-    subprocess.run(["osascript", "-e", script], check=True)
+    """Set the wallpaper on every screen via NSWorkspace, then fan the
+    config out to every Space.
+
+    Uses JXA (JavaScript for Automation) to call
+    NSWorkspace.setDesktopImageURL:forScreen:options:error: directly —
+    the same API desktoppr uses, minus the external dependency.
+    """
+    jxa = f"""
+        ObjC.import('AppKit');
+        var ws = $.NSWorkspace.sharedWorkspace;
+        var url = $.NSURL.fileURLWithPath({path.as_posix()!r});
+        var screens = $.NSScreen.screens;
+        for (var i = 0; i < screens.count; i++) {{
+          ws.setDesktopImageURLForScreenOptionsError(
+            url, screens.objectAtIndex(i), $(), $());
+        }}
+    """
+    subprocess.run(["osascript", "-l", "JavaScript", "-e", jxa], check=True)
     _sync_spaces()
 
 
