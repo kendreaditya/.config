@@ -1,94 +1,146 @@
-# setup-windows.ps1
+# setup-windows.ps1 — Windows setup mirroring setup-macos.sh
 
-# Check if running as administrator
+# Must run as admin
 if (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)) {
     Write-Warning "Please run this script as Administrator!"
     exit
 }
 
-# Check if winget is installed
+# winget check
 if (!(Get-Command winget -ErrorAction SilentlyContinue)) {
-    Write-Output "Installing winget..."
-    # Direct users to install winget from Microsoft Store
+    Write-Output "winget not found. Install 'App Installer' from the Microsoft Store, then re-run."
     Start-Process "ms-windows-store://pdp/?ProductId=9nblggh4nns1&mode=mini"
-    Write-Output "Please install App Installer from the Microsoft Store and run this script again."
     exit
 }
 
-Write-Output "Installing packages and applications..."
+Write-Output "Installing packages via winget..."
 
-# Install base packages
-Write-Output "Installing base packages..."
-winget install Microsoft.VisualStudioCode
-winget install Google.Chrome
-winget install OpenJS.NodeJS
-winget install Python.Python.3.10
-winget install Git.Git
-winget install cURL.cURL
-winget install GitHub.cli
-winget install Neovim.Neovim
-winget install JanDeDobbeleer.OhMyPosh -s winget
+# Base tools + dev packages (batched via one call each, but winget doesn't truly batch)
+$packages = @(
+    # Core
+    'Git.Git', 'GitHub.cli', 'Microsoft.PowerShell', 'Microsoft.WindowsTerminal',
+    'OpenJS.NodeJS.LTS', 'Python.Python.3.12',
+    # Editors
+    'Microsoft.VisualStudioCode', 'Neovim.Neovim', 'vim.vim', 'Zed.Zed',
+    # CLI utilities
+    'cURL.cURL', 'GnuWin32.Wget', 'BurntSushi.ripgrep.MSVC',
+    'junegunn.fzf', 'yt-dlp.yt-dlp', 'mikefarah.yq', 'atuinsh.atuin',
+    'fastfetch-cli.fastfetch', 'Kitware.CMake', 'LLVM.LLVM', 'GnuWin32.Make',
+    # Media / OCR
+    'ImageMagick.ImageMagick', 'Gyan.FFmpeg', 'UB-Mannheim.TesseractOCR',
+    # Runtimes
+    'Oven-sh.Bun', 'DenoLand.Deno',
+    # Apps
+    'Google.Chrome', 'Mozilla.Firefox', 'Doist.Todoist', 'Zoom.Zoom',
+    'bruno.bruno', 'ollama.ollama', 'Warp.Warp', 'Cloudflare.Warp',
+    'ProtonTechnologies.ProtonVPN', 'tailscale.tailscale',
+    'Obsidian.Obsidian', 'Postman.Postman', 'AnthropicPBC.Claude',
+    # Windows extras
+    'Microsoft.PowerToys', 'JanDeDobbeleer.OhMyPosh'
+)
 
-# Install additional developer tools
-winget install --id ImageMagick.ImageMagick
-winget install --id Kitware.CMake
-winget install --id GnuWin32.Make
-winget install --id LLVM.LLVM
-winget install --id GnuWin32.Wget
-winget install --id junegunn.fzf
-winget install --id yt-dlp.yt-dlp
-winget install --id mikefarah.yq
-winget install --id tmux.tmux
-winget install --id atuinsh.atuin
-winget install --id vim.vim
-winget install --id dylanaraps.neofetch
-winget install --id Microsoft.PowerShell
-winget install --id JanDeDobbeleer.OhMyPosh
+foreach ($pkg in $packages) {
+    Write-Output "→ $pkg"
+    winget install --id $pkg -e --accept-source-agreements --accept-package-agreements -h 2>&1 | Out-Null
+}
 
-# Install applications
-winget install --id Doist.Todoist
-winget install --id Zoom.Zoom
-winget install --id bruno.bruno
-winget install --id ollama.ollama
-winget install --id Microsoft.WindowsTerminal
-winget install --id Warp.Warp
-winget install --id Cloudflare.Warp
-winget install --id Oven-sh.Bun
-winget install --id DenoLand.Deno
-winget install --id ProtonTechnologies.ProtonVPN
-
-
-# Install Windows-specific packages
-Write-Output "Installing Windows-specific packages..."
 # WSL
-Write-Output "Enabling Windows Subsystem for Linux..."
-Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux
+Write-Output "Enabling WSL..."
+Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -NoRestart
+wsl --install -d Ubuntu --no-launch
 
-# PowerToys
-Write-Output "Installing Microsoft PowerToys..."
-winget install Microsoft.PowerToys -s winget
+# npm globals
+Write-Output "Installing npm globals..."
+npm install -g wrangler vercel pnpm typescript tailwindcss eslint yarn
 
-# Ubuntu for WSL
-Write-Output "Installing Ubuntu for WSL..."
-wsl --install -d Ubuntu
+# Claude Code CLI (via PowerShell bootstrap)
+if (!(Get-Command claude -ErrorAction SilentlyContinue)) {
+    Write-Output "Installing Claude Code..."
+    iwr -useb https://claude.ai/install.ps1 | iex
+}
 
-Write-Output "Configuring Windows settings..."
+# Python venv for .config scripts
+Write-Output "Setting up .config Python venv..."
+python -m venv "$HOME\.config\config-venv"
+& "$HOME\.config\config-venv\Scripts\pip.exe" install --upgrade pip
+& "$HOME\.config\config-venv\Scripts\pip.exe" install -r "$HOME\.config\requirements.txt"
 
-# Install and configure Oh-My-Posh
-New-Item -Path $PROFILE -Type File -Force
-Add-Content -Path $PROFILE -Value 'oh-my-posh init pwsh | Invoke-Expression'
+# Workspace dir
+New-Item -ItemType Directory -Force -Path "$HOME\workspace" | Out-Null
 
-# Configure PowerShell to use PSReadLine with better history and auto-completion
-Write-Output "Installing PSReadLine module..."
-Install-Module -Name PSReadLine -Force -SkipPublisherCheck
-Add-Content -Path $PROFILE -Value 'Import-Module PSReadLine'
-Add-Content -Path $PROFILE -Value 'Set-PSReadLineOption -PredictionSource History'
-Add-Content -Path $PROFILE -Value 'Set-PSReadLineOption -PredictionViewStyle ListView'
+# Install licensed fonts from assets\fonts into user fonts folder
+$fontsDir = "$HOME\.config\assets\fonts"
+if (Test-Path $fontsDir) {
+    Write-Output "Installing fonts..."
+    $userFonts = "$env:LOCALAPPDATA\Microsoft\Windows\Fonts"
+    New-Item -ItemType Directory -Force -Path $userFonts | Out-Null
+    Get-ChildItem -Path $fontsDir -Include *.otf, *.ttf -Recurse | ForEach-Object {
+        $dest = Join-Path $userFonts $_.Name
+        Copy-Item -Force $_.FullName $dest
+        # Register with Windows
+        $regPath = 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts'
+        $name = "$($_.BaseName) (TrueType)"
+        New-ItemProperty -Path $regPath -Name $name -PropertyType String -Value $dest -Force | Out-Null
+    }
+}
 
-# Set Chrome as default browser
-Write-Output "Setting Chrome as default browser..."
+# Symlink scripts to a PATH location (requires developer mode or admin for symlinks on Windows)
+$scriptsTarget = "$HOME\.local\bin"
+New-Item -ItemType Directory -Force -Path $scriptsTarget | Out-Null
+Get-ChildItem "$HOME\.config\scripts" | Where-Object { !$_.PSIsContainer } | ForEach-Object {
+    $link = Join-Path $scriptsTarget $_.Name
+    if (Test-Path $link) { Remove-Item $link -Force }
+    New-Item -ItemType SymbolicLink -Path $link -Target $_.FullName -ErrorAction SilentlyContinue | Out-Null
+}
+
+# Claude Code behavioral files — symlinks to %USERPROFILE%\.claude
+$claudeDir = "$HOME\.claude"
+New-Item -ItemType Directory -Force -Path $claudeDir | Out-Null
+$claudeLinks = @{
+    'skills'        = "$HOME\.config\claude\skills"
+    'commands'      = "$HOME\.config\claude\commands"
+    'agents'        = "$HOME\.config\claude\agents"
+    'settings.json' = "$HOME\.config\claude\settings.json"
+    'CLAUDE.md'     = "$HOME\.config\claude\CLAUDE.md"
+}
+foreach ($name in $claudeLinks.Keys) {
+    $link = Join-Path $claudeDir $name
+    if (Test-Path $link) { Remove-Item $link -Force -Recurse }
+    New-Item -ItemType SymbolicLink -Path $link -Target $claudeLinks[$name] -ErrorAction SilentlyContinue | Out-Null
+}
+
+# sync-docs
+if (Test-Path "$scriptsTarget\sync-docs") {
+    & "$scriptsTarget\sync-docs"
+}
+
+# PowerShell profile — oh-my-posh + PSReadLine
+Write-Output "Configuring PowerShell profile..."
+New-Item -Path $PROFILE -Type File -Force | Out-Null
+$profileContent = @'
+oh-my-posh init pwsh | Invoke-Expression
+Import-Module PSReadLine
+Set-PSReadLineOption -PredictionSource History
+Set-PSReadLineOption -PredictionViewStyle ListView
+'@
+Set-Content -Path $PROFILE -Value $profileContent
+
+# PSReadLine
+Install-Module -Name PSReadLine -Force -SkipPublisherCheck -AllowClobber
+
+# Default browser prompt
 Start-Process "ms-settings:defaultapps"
-Write-Output "Please set Chrome as your default browser in the Settings window that just opened."
 
-Write-Output "Windows setup complete! Some settings may require a system restart to take full effect."
-Write-Output "Note: Ubuntu for WSL may need additional setup after installation."
+# Verify
+Write-Output ""
+Write-Output "Verifying installation..."
+foreach ($cmd in @('node', 'python', 'nvim', 'gh', 'claude', 'fastfetch')) {
+    if (Get-Command $cmd -ErrorAction SilentlyContinue) {
+        Write-Output "  ✓ $cmd"
+    } else {
+        Write-Output "  ✗ $cmd (not in PATH — open a new shell)"
+    }
+}
+
+Write-Output ""
+Write-Output "Windows setup complete! Reboot to finish WSL setup."
