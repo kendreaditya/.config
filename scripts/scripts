@@ -1,0 +1,206 @@
+#!/usr/bin/env python3
+"""scripts - List all CLIs in ~/.config/scripts/ with short descriptions.
+
+Resolves symlinks → skills/<name>/SKILL.md frontmatter.
+Falls back to the script's own module docstring for non-skill scripts.
+
+Usage:
+  scripts              List name + first-sentence description
+  scripts -v           Full descriptions (not truncated)
+  scripts -p           Include resolved file paths
+  scripts --skill      Only skill-backed CLIs
+  scripts --local      Only non-skill CLIs
+"""
+import argparse
+import os
+import re
+import sys
+from pathlib import Path
+
+SCRIPTS_DIR = Path.home() / ".config" / "scripts"
+SELF = "scripts"  # don't list self
+
+FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
+DESC_RE = re.compile(r'^description:\s*["\']?(.*?)["\']?\s*$', re.MULTILINE | re.DOTALL)
+DOCSTRING_RE = re.compile(r'^(?:#![^\n]*\n)?\s*"""(.*?)"""', re.DOTALL)
+BASH_HEREDOC_RE = re.compile(
+    r"cat\s*<<[-']?\s*['\"]?(\w+)['\"]?\s*\n(.*?)\n\s*\1\s*$",
+    re.DOTALL | re.MULTILINE,
+)
+BASH_USAGE_FN_RE = re.compile(
+    r"(?:function\s+\w*usage\w*|\w*usage\w*\s*\(\s*\))\s*\{(.*?)^\s*\}",
+    re.DOTALL | re.MULTILINE | re.IGNORECASE,
+)
+
+
+def find_skill_md(path: Path) -> Path | None:
+    """Walk up from a script path looking for SKILL.md."""
+    for parent in [path.parent] + list(path.parents):
+        candidate = parent / "SKILL.md"
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def parse_skill_description(skill_md: Path) -> str | None:
+    """Extract description from SKILL.md YAML frontmatter."""
+    try:
+        text = skill_md.read_text()
+    except OSError:
+        return None
+    fm_match = FRONTMATTER_RE.match(text)
+    if not fm_match:
+        return None
+    frontmatter = fm_match.group(1)
+    desc_match = DESC_RE.search(frontmatter)
+    if not desc_match:
+        return None
+    # Clean up: collapse whitespace, strip quotes
+    desc = re.sub(r"\s+", " ", desc_match.group(1)).strip().strip("\"'")
+    return desc
+
+
+def parse_script_docstring(path: Path) -> str | None:
+    """Extract a descriptive blurb from a script's own source.
+
+    Tries (in order):
+      1. Python module docstring (triple-quoted, after shebang)
+      2. Bash heredoc usage block — takes the line after 'Usage: ...'
+      3. Bash comment block (consecutive '# ...' lines after shebang)
+    """
+    try:
+        with open(path) as f:
+            head = "".join(f.readline() for _ in range(200))
+    except OSError:
+        return None
+
+    # 1. Python docstring
+    m = DOCSTRING_RE.search(head)
+    if m:
+        body = m.group(1).strip()
+        first_para = body.split("\n\n")[0].strip()
+        return re.sub(r"\s+", " ", first_para)
+
+    # 2. Bash heredoc (usage() { cat <<USAGE ... USAGE })
+    m = BASH_HEREDOC_RE.search(head)
+    if m:
+        content = m.group(2).strip()
+        lines = [l.strip() for l in content.split("\n") if l.strip()]
+        desc_lines = [l for l in lines if not l.lower().startswith("usage:") and not l.startswith("-")]
+        if desc_lines:
+            return desc_lines[0]
+
+    # 3. Bash usage function with echo statements — take first descriptive echo
+    m = BASH_USAGE_FN_RE.search(head)
+    if m:
+        body = m.group(1)
+        echos = re.findall(r'echo\s+"([^"]+)"', body)
+        desc_echos = [e for e in echos if e and not e.lower().startswith(("usage:", "arguments:", "options:", "-"))]
+        if desc_echos:
+            return desc_echos[0]
+
+    # 3. Bash comment block
+    lines = head.split("\n")
+    comments = []
+    seen_content = False
+    for line in lines[1:]:  # skip shebang
+        s = line.strip()
+        if not s:
+            if comments:
+                break
+            continue
+        if s.startswith("#"):
+            text = s.lstrip("#").strip()
+            if text and not text.startswith("!"):
+                comments.append(text)
+                seen_content = True
+        elif seen_content:
+            break
+        elif s.startswith(("set ", "export ", "function ", "{")):
+            continue  # bash prelude
+        else:
+            break
+    if comments:
+        # Skip generic headers that describe internal helpers, not the script
+        SKIP_PATTERNS = ("usage", "function to", "helper", "display ")
+        for c in comments:
+            lc = c.lower()
+            if not any(p in lc for p in SKIP_PATTERNS) and len(c) > 15:
+                return c
+        return comments[0]
+
+    return None
+
+
+def first_sentence(text: str) -> str:
+    """Return first sentence, preserving em-dashes and parentheticals.
+
+    A sentence ends at `. `, `! `, or `? ` followed by a capital letter, or at end-of-text.
+    """
+    # Match: any chars, then [.!?], then whitespace + uppercase (next sentence) or end.
+    m = re.match(r"^(.+?[.!?])\s+[A-Z]", text)
+    if m:
+        return m.group(1)
+    return text
+
+
+def describe(name: str, path: Path) -> tuple[str, str]:
+    """Return (origin, description). origin: 'skill' or 'local'.
+
+    Prefers the script's own docstring (distinguishes sibling CLIs from the
+    same skill). Falls back to SKILL.md frontmatter description.
+    """
+    real = path.resolve()
+    origin = "local"
+    if path.is_symlink() and find_skill_md(real):
+        origin = "skill"
+
+    # Prefer script's own docstring — distinguishes siblings like tmux-find vs tmux-wait
+    desc = parse_script_docstring(real)
+    if not desc and origin == "skill":
+        desc = parse_skill_description(find_skill_md(real))
+    return origin, desc or "(no description)"
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0], add_help=True)
+    ap.add_argument("-v", "--verbose", action="store_true", help="full descriptions, not truncated")
+    ap.add_argument("-p", "--path", action="store_true", help="show resolved paths")
+    group = ap.add_mutually_exclusive_group()
+    group.add_argument("--skill", action="store_true", help="only skill-backed CLIs")
+    group.add_argument("--local", action="store_true", help="only non-skill CLIs")
+    args = ap.parse_args()
+
+    entries = []
+    for item in sorted(SCRIPTS_DIR.iterdir()):
+        if item.name in {SELF, "__pycache__"} or item.name.startswith("_"):
+            continue
+        if item.is_dir():
+            continue
+        if not os.access(item, os.X_OK):
+            continue
+        origin, desc = describe(item.name, item)
+        if args.skill and origin != "skill":
+            continue
+        if args.local and origin != "local":
+            continue
+        entries.append((item.name, origin, desc, item.resolve()))
+
+    if not entries:
+        print("No scripts found.", file=sys.stderr)
+        sys.exit(0)
+
+    name_width = max(len(n) for n, _, _, _ in entries)
+    for name, origin, desc, real in entries:
+        short = desc if args.verbose else first_sentence(desc)
+        if not args.verbose and len(short) > 100:
+            short = short[:97] + "..."
+        tag = f"[{origin}]"
+        line = f"{name:<{name_width}}  {tag:<7}  {short}"
+        if args.path:
+            line += f"  → {real}"
+        print(line)
+
+
+if __name__ == "__main__":
+    main()

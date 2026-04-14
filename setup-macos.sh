@@ -26,6 +26,9 @@ if ! command -v brew &> /dev/null; then
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 fi
 
+# Ensure brew is in PATH for this script (works on fresh installs and re-runs)
+[ -x /opt/homebrew/bin/brew ] && eval "$(/opt/homebrew/bin/brew shellenv)"
+
 echo "Installing packages and applications..."
 
 # Avoid redundant API fetches since brew update already ran above
@@ -34,7 +37,7 @@ export HOMEBREW_NO_AUTO_UPDATE=1
 # Install all formulae in one call (resolves deps once, downloads in parallel)
 brew tap steipete/tap
 brew tap assemblyai/assemblyai
-brew install imagemagick cmake gcc ffmpeg gh wget curl python@3.12 \
+brew install mas imagemagick cmake gcc ffmpeg gh wget curl python@3.12 \
   fzf neovim yt-dlp yq tmux atuin vim neofetch node git zsh ripgrep \
   ocrmypdf tesseract graphviz fswatch nvm deno oven-sh/bun/bun ncdu himalaya \
   steipete/tap/gogcli steipete/tap/imsg assemblyai
@@ -45,11 +48,14 @@ npm install -g wrangler vercel pnpm typescript tailwindcss eslint yarn
 # Install vim-plug for neovim
 sh -c 'curl -fLo "${XDG_DATA_HOME:-$HOME/.local/share}"/nvim/site/autoload/plug.vim --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'
 
-# Install all casks in one call (--overwrite handles apps already installed outside brew)
-brew install --cask --overwrite raycast zed todoist tomatobar zoom alt-tab bruno \
+# Install all casks in one call (--force handles apps already installed outside brew)
+brew install --cask --force raycast zed todoist tomatobar zoom alt-tab bruno \
   hiddenbar blackhole-2ch ollama amethyst hammerspoon karabiner-elements \
   visual-studio-code google-chrome warp ghostty logseq obsidian postman \
-  protonvpn cloudflare-warp finetune tailscale
+  protonvpn cloudflare-warp finetune
+
+# Install Mac App Store apps (requires App Store sign-in)
+mas install 1475387142  # Tailscale
 
 # Install oh-my-zsh
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
@@ -62,9 +68,21 @@ fi
 
 # Create .config Python venv and install dependencies
 echo "Setting up .config Python venv..."
-python3 -m venv ~/.config/config-venv
+/opt/homebrew/bin/python3.12 -m venv ~/.config/config-venv
 ~/.config/config-venv/bin/pip install --upgrade pip
 ~/.config/config-venv/bin/pip install -r ~/.config/requirements.txt
+
+# Create workspace directory
+mkdir -p ~/workspace
+
+# Install licensed fonts from assets/fonts into ~/Library/Fonts
+if [ -d ~/.config/assets/fonts ]; then
+  echo "Installing fonts..."
+  mkdir -p ~/Library/Fonts
+  for font in ~/.config/assets/fonts/*.{otf,ttf}; do
+    [ -f "$font" ] && cp -f "$font" ~/Library/Fonts/
+  done
+fi
 
 # Symlink scripts to PATH
 mkdir -p ~/.local/bin
@@ -77,14 +95,20 @@ done
 
 # Claude Code behavioral files
 mkdir -p ~/.claude ~/.config/claude/agents
-ln -sf ~/.config/claude/skills ~/.claude/skills
-ln -sf ~/.config/claude/commands ~/.claude/commands
-ln -sf ~/.config/claude/agents ~/.claude/agents
-ln -sf ~/.config/claude/settings.json ~/.claude/settings.json
-ln -sf ~/.config/claude/CLAUDE.md ~/.claude/CLAUDE.md
+ln -sfn ~/.config/claude/skills ~/.claude/skills
+ln -sfn ~/.config/claude/commands ~/.claude/commands
+ln -sfn ~/.config/claude/agents ~/.claude/agents
+ln -sfn ~/.config/claude/settings.json ~/.claude/settings.json
+ln -sfn ~/.config/claude/CLAUDE.md ~/.claude/CLAUDE.md
 
-# Download Claude Code docs locally
-sync-docs
+# Install Claude Code CLI
+if ! command -v claude &> /dev/null; then
+  echo "Installing Claude Code..."
+  curl -fsSL https://claude.ai/install.sh | bash
+fi
+
+# Download Claude Code docs locally (scripts symlinked above)
+~/.local/bin/sync-docs || echo "Warning: sync-docs failed (may need 'requests' — install manually)"
 
 
 # Apply macOS configuration
@@ -108,4 +132,17 @@ brew cleanup
 # Clear pip download cache (packages already installed into venv)
 pip3 cache purge
 
-echo "macOS setup complete!"
+# Verify critical tools are available
+echo ""
+echo "Verifying installation..."
+for cmd in brew node python3 nvim tmux gh claude; do
+  if command -v "$cmd" &>/dev/null; then
+    echo "  ✓ $cmd"
+  else
+    echo "  ✗ $cmd (not in PATH — open a new shell)"
+  fi
+done
+
+echo ""
+echo "✅ macOS setup complete!"
+echo "👉 Run 'exec zsh' or open a new terminal to pick up shell changes."

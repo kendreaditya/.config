@@ -1,178 +1,160 @@
 ---
 name: monarch-money
-description: "Monarch Money personal finance API. Query accounts, transactions, budgets, cashflow, recurring expenses, and net worth. Mutate transactions (create/update/delete), set budgets, and refresh accounts. Use when user asks about: Monarch Money, my budget, my transactions, my accounts, my spending, cashflow, net worth, recurring expenses, financial summary."
+description: "Monarch Money (mm) personal finance API. Query accounts, transactions, budgets, cashflow, recurring expenses, and net worth. Mutate transactions (create/update/delete), set budgets, and refresh accounts. Use when user asks about: Monarch Money, my budget, my transactions, my accounts, my spending, cashflow, net worth, recurring expenses, financial summary."
 ---
 
 # Monarch Money
 
-Access and manage Monarch Money via the `monarchmoney` Python library.
+All operations go through `mm.py` — a single CLI wrapping the `monarchmoney` Python library. Everything the skill needs lives inside this folder: scripts, state (session, rules), and docs. No external state directories.
 
-## Setup (One-Time)
-
-**Email/password login is blocked by Cloudflare** — must use a browser session token instead.
-
-**Step 1** — Run this in browser console on app.monarch.com (Cmd+Option+J):
-```js
-const u = JSON.parse(JSON.parse(localStorage['persist:root']).user); copy(JSON.stringify({token: u.token}))
-```
-
-**Step 2** — Run in terminal:
-```bash
-mkdir -p ~/.mm && pbpaste > ~/.mm/session.json
-```
-
-Token is now cached at `~/.mm/session.json` and reused automatically. When it expires, repeat these two steps.
-
-## Running the Helper Script
+## Quick start
 
 ```bash
-~/.config/config-venv/bin/python3.14 ~/.config/claude/skills/monarch-money/scripts/mm.py <command> [args]
+# Diagnose + auto-fix the environment (idempotent; safe to re-run anytime)
+mm.py doctor --fix
+
+# Most common workflow
+mm.py month-review                          # summary + anomaly flags (current month)
+mm.py untagged 2026-04-01 2026-04-30        # untagged expenses with live suggestions
+mm.py set-tags <id> social                  # tag by name or alias
 ```
 
-Output is always JSON — pipe to `jq` for filtering.
+Let `mm.py` = `~/.config/config-venv/bin/python3 ~/.config/claude/skills/monarch-money/scripts/mm.py`.
+
+## First-time setup
+
+**Email/password login is blocked by Cloudflare** — must use a browser session token.
+
+1. Open `https://app.monarch.com/dashboard`, DevTools console (⌘⌥J), run:
+   ```js
+   const u = JSON.parse(JSON.parse(localStorage['persist:root']).user); copy(JSON.stringify({token: u.token}))
+   ```
+2. Save to the skill's state folder:
+   ```bash
+   mkdir -p ~/.config/claude/skills/monarch-money/state && pbpaste > ~/.config/claude/skills/monarch-money/state/session.json
+   ```
+3. Run `mm.py doctor --fix` — installs pinned deps, patches the library's BASE_URL, verifies the API, and seeds default tag rules.
+
+When the token expires, repeat steps 1–2 and re-run `mm.py doctor`.
+
+## Tagging philosophy (IMPORTANT)
+
+Tags reflect the **intent** behind a transaction, not the category or merchant. The same merchant can map to different tags depending on *why* the money was spent. `Panera Bread` can be Essential (solo "need to eat"), Relationships (with friends), or Discretionary (treat).
+
+Never auto-tag a merchant uniformly across all transactions without checking intent. For ambiguous cases, ask the user.
+
+Run `mm.py tags` to see all tags with their intent descriptions.
 
 ## Commands
 
-### Read
+### Setup / health
+```
+doctor [--fix]                      Diagnose env (install deps, patch BASE_URL, test API)
+```
 
-```bash
-mm.py accounts                           # all linked accounts
-mm.py holdings                           # brokerage securities
-mm.py account-history                    # daily balance history
-mm.py transactions [limit] [start] [end] # e.g. transactions 50 2026-03-01 2026-03-31
-mm.py transaction <id>                   # single transaction detail
-mm.py transaction-categories             # configured categories (use IDs for updates)
-mm.py transaction-tags                   # configured tags
-mm.py budgets [year] [month]             # budget vs actual (default: current month)
-mm.py cashflow [start] [end]             # cashflow by category/merchant
-mm.py cashflow-summary [year] [month]    # income / expenses / savings rollup
-mm.py recurring                          # upcoming recurring transactions
-mm.py subscription                       # account status (paid/trial)
+### Read
+```
+accounts                            All linked accounts
+holdings                            Brokerage securities
+account-history                     Daily balance history
+transactions [--all] [lim] [s] [e]  --all auto-paginates
+transaction <id>                    Single detail
+transaction-categories              Raw categories JSON
+transaction-tags                    Raw tags JSON
+tags                                Pretty-printed tags + intent
+budgets [year] [month]              Default: current month
+cashflow [start] [end]              By category/merchant
+cashflow-summary [year] [month]     Income/expense/savings
+recurring                           Upcoming recurring txns
+subscription                        Account status
+```
+
+### Analysis
+```
+month-review [yyyy-mm]              Summary + anomaly flags + untagged count
+untagged [start] [end]              Untagged expenses with live merchant-based suggestions
+                                    (computed from trailing 6 months — no cached file)
+analyze                             Confusion matrix → ~/Downloads/mm_tag_analysis.json
+match-email <txn_id>                Cross-ref Gmail for order contents (via gog)
 ```
 
 ### Write
-
-```bash
-mm.py update-transaction <id> category_id <category_id>
-mm.py update-transaction <id> notes "lunch with team"
-mm.py update-transaction <id> reviewed true
-mm.py update-transaction <id> merchant "New Merchant Name"
-mm.py set-budget <category_id> <amount> [year] [month]
-mm.py refresh                            # trigger + wait for account sync
-mm.py logout                             # clear cached session
+```
+refresh                             Trigger account sync + wait
+update-transaction <id> <field> <value>   fields: category_id, notes, reviewed, merchant
+set-tags <id> <tag>[,<tag>...]      Names, aliases (RAK, social, essential...), or IDs
+bulk-tag [--apply]                  Apply state/tag_rules.json (dry-run default)
+bulk-tag --seed-rules               Seed default rules file
+set-budget <cat_id> <amount> [y] [m]
+logout                              Clear session
 ```
 
-### Tagging Transactions
+## Files (all within this skill folder)
 
-The `mm.py` script does not expose a tag command — use the Python API directly:
+| Path | Purpose |
+|---|---|
+| `scripts/mm.py` | Main CLI (includes `doctor` self-diagnose) |
+| `scripts/_mm_common.py` | Shared auth, pagination, tag resolution, doctor logic |
+| `state/session.json` | Browser-grabbed auth token. `{"token": "..."}` |
+| `state/tag_rules.json` | Deterministic merchant→tag rules for `bulk-tag`. User-editable. |
+| `state/config.json` | Optional. e.g. `{"gmail_account": "you@example.com"}` |
+| `references/api.md` | `monarchmoney` library method signatures |
 
-```python
-# Set tags on a transaction (overwrites existing tags)
-await mm.set_transaction_tags(transaction_id="<id>", tag_ids=["<tag_id>"])
+Tag suggestions are **computed live** (no cached patterns file). `untagged` pulls the trailing 6 months of history each run and suggests the most-used tag per merchant. Slightly slower but always fresh.
 
-# Multiple tags
-await mm.set_transaction_tags(transaction_id="<id>", tag_ids=["<id1>", "<id2>"])
+## Tag aliases
 
-# Remove all tags
-await mm.set_transaction_tags(transaction_id="<id>", tag_ids=[])
+Run `mm.py tags` for the live list. Aliases accepted by `set-tags`:
 
-# Get tag IDs
-tags = await mm.get_transaction_tags()
-# → tags["householdTransactionTags"][i]["id"], ["name"]
-```
+| Alias | Canonical |
+|---|---|
+| `rak`, `charity`, `krishna` | Krishna Consciousness / Charity / RAK |
+| `social`, `relationships` | Relationships & Social Connection |
+| `discretionary` | Discretionary Spending |
+| `essential` | Essential Expenses |
+| `parental` | Parental Support |
+| `travel`, `experiences` | Experiences / Travel |
+| `health`, `wellness` | Health & Wellness |
+| `sub` | Subscription |
+| `transport` | Transportation |
 
-Use the `get_client()` helper from any script (see scripts below) — it handles JSON token auth correctly.
+Tags also resolve by case-insensitive prefix (e.g. `house` → Housing).
 
-**Tag IDs (Aditya's account):**
-```python
-TAG_IDS = {
-    "Housing":                              "209377996017761359",
-    "Transportation":                       "209377965282950221",
-    "Essential Expenses":                   "209378009181584471",
-    "Parental Support":                     "209378020670831705",
-    "Discretionary Spending":               "209378014914149464",
-    "Subscription":                         "139957970043403485",
-    "Receipt Import":                       "235299914760585080",
-    "Krishna Consciousness / Charity / RAK":"238987622751141176",
-    "Relationships & Social Connection":    "238987623734705465",
-    "Experiences / Travel":                 "238987624010480954",
-    "Health & Wellness":                    "238987624317713723",
-}
-```
-
-### Fetching All Transactions (Pagination)
-
-`mm.py transactions` is limited to a single page. To fetch all transactions use offset pagination:
-
-```python
-all_txns = []
-offset = 0
-while True:
-    result = await mm.get_transactions(limit=500, offset=offset,
-                                       start_date="2020-01-01", end_date="2026-12-31")
-    batch = result["allTransactions"]["results"]
-    total = result["allTransactions"]["totalCount"]
-    all_txns.extend(batch)
-    if len(all_txns) >= total or not batch:
-        break
-    offset += 500
-```
-
-### Helper Scripts
-
-Two reusable scripts live in `scripts/`:
-
-**`mm_analysis.py`** — Confusion matrix across all transactions. Shows which merchants always map to the same tag (100% confidence), which are ambiguous, and how many are untagged. Saves full JSON output to `~/Downloads/mm_tag_analysis.json`.
-```bash
-~/.config/config-venv/bin/python3.14 ~/.config/claude/skills/monarch-money/scripts/mm_analysis.py
-```
-
-**`mm_bulk_tag.py`** — Bulk-tags untagged transactions by merchant using a hardcoded rule table. Dry-run by default.
-```bash
-~/.config/config-venv/bin/python3.14 ~/.config/claude/skills/monarch-money/scripts/mm_bulk_tag.py          # preview
-~/.config/config-venv/bin/python3.14 ~/.config/claude/skills/monarch-money/scripts/mm_bulk_tag.py --apply  # apply
-```
-
-### Common Patterns
-
-**All accounts with balances:**
-```bash
-mm.py accounts | jq '.accounts[] | {name: .displayName, balance: .displayBalance, type: .type.display}'
-```
-
-**Last 20 transactions:**
-```bash
-mm.py transactions 20 | jq '.allTransactions.results[] | {date: .date, merchant: .merchant.name, amount: .amount, category: .category.name}'
-```
+## Common recipes
 
 **Net worth:**
 ```bash
 mm.py accounts | jq '[.accounts[] | select(.includeInNetWorth) | .currentBalance] | add'
 ```
 
-**This month's spending summary:**
+**Tag a birthday-gift Amazon order as RAK:**
 ```bash
-mm.py cashflow-summary | jq '{income: .summary.incomeSum, expenses: .summary.expenseSum, savings: .summary.savingsSum}'
+mm.py set-tags 240968462327610974 rak
 ```
 
-**Find category ID before updating:**
+**Identify a mystery Amazon charge:**
 ```bash
-mm.py transaction-categories | jq '.categories[] | select(.name | test("groceries"; "i")) | {id, name}'
+mm.py match-email <txn_id>
 ```
 
-## Known Issues / Gotchas
+**Review the month and spot anomalies:**
+```bash
+mm.py month-review                 # sign flips, 2σ deviations, large Uncategorized txns
+```
 
-- **Cloudflare blocks email/password login** — always use the browser token method above.
-- **API domain:** Library was patched from `api.monarchmoney.com` → `api.monarch.com` (PyPI v0.1.15 has wrong domain; patch applied to installed file).
-- **Python version:** The venv has two Pythons — `python3` = 3.12 (Anaconda), `python3.14` = Homebrew. `monarchmoney` is installed under 3.14. Always use `python3.14` explicitly.
-- **Session format:** `~/.mm/session.json` stores `{"token": "..."}` as JSON (not pickle). The script handles both formats.
-- **Token expiry:** If you get auth errors, repeat the browser console → pbpaste steps to refresh the token.
-- **`set_transaction_tags` fails on some transactions** — certain transactions (likely split transactions) reject the `setTransactionTags` mutation server-side with a `TransportQueryError`. Always wrap in try/except when bulk-tagging and continue on failure:
-  ```python
-  try:
-      await mm.set_transaction_tags(transaction_id=txn_id, tag_ids=[tag_id])
-  except Exception:
-      pass  # skip — likely a split transaction
-  ```
+**Batch-tag known merchants:**
+```bash
+# Edit state/tag_rules.json to add:
+# {"merchant": "Starbucks", "tag": "Discretionary Spending"}
+mm.py bulk-tag                     # dry-run preview
+mm.py bulk-tag --apply             # commit
+```
+
+## Known issues
+
+- `set_transaction_tags` can fail on split transactions server-side (`TransportQueryError`). `bulk-tag` wraps in try/except and continues; individual `set-tags` prints error and exits 2.
+- Monarch's Plaid feed sometimes marks routine 401(k) contributions as `needsReview: true` with category `Uncategorized`. `month-review` will flag these — verify before re-categorizing. This skill was designed to catch exactly this kind of auto-miscategorization (a positive-valued "expense" flipping `sumExpense` sign).
+- Library uses `https://api.monarch.com` (not `api.monarchmoney.com`). `doctor --fix` patches the installed package automatically.
+- Python venv at `~/.config/config-venv/bin/python3` (shared across skills; Python 3.12). Library needs `gql<4` — `doctor --fix` pins this.
 
 See `references/api.md` for full Python method signatures.

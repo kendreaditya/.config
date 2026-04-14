@@ -332,6 +332,40 @@ Do not include any other fields in YAML frontmatter.
 
 Write instructions for using the skill and its bundled resources.
 
+#### Expose User-Facing CLIs via Symlink (This Installation Convention)
+
+If the skill bundles a user-facing CLI script (e.g., `scripts/mm.py`, `scripts/wcb`, `scripts/levels`), expose it on PATH by symlinking into `~/.config/scripts/`, which is already on this user's PATH.
+
+**When to do this:** the script is a top-level CLI the user (not just Codex) will invoke by name. NOT for helper modules, test scripts, subcommand scripts, or internal utilities.
+
+**Steps:**
+
+1. Make the script executable:
+   ```bash
+   chmod +x ~/.config/claude/skills/<skill-name>/scripts/<script>
+   ```
+2. Symlink into `~/.config/scripts/` using the short command name (drop `.py`/`.sh`):
+   ```bash
+   ln -sf ~/.config/claude/skills/<skill-name>/scripts/<script> ~/.config/scripts/<short-name>
+   ```
+3. Verify: `which <short-name>` should resolve, and `<short-name> --help` should run.
+
+**Naming rules:**
+- Use kebab-case, drop file extensions (`mm.py` → `mm`, `get-subs.sh` → `movie-subs`).
+- Namespace only if collision risk (e.g., `tmux-wait` not `wait`).
+- Check for collisions first: `which <name>` — if it resolves to anything, pick a different name.
+
+**Venv re-exec:** If the script needs a Python package installed only in `~/.config/config-venv`, add this pattern near the top of the script so it re-execs under the correct interpreter when invoked via the symlink:
+
+```python
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _utils import ensure_config_venv
+ensure_config_venv()
+```
+
+`_utils.py` with `ensure_config_venv()` should be copied into the skill's `scripts/` directory. Reference implementation: `~/.config/claude/skills/shortn/scripts/_utils.py`.
+
 ### Step 5: Packaging a Skill
 
 Once development of the skill is complete, it must be packaged into a distributable .skill file that gets shared with the user. The packaging process automatically validates the skill first to ensure it meets all requirements:
