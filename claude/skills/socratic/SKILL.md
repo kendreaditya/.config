@@ -1,6 +1,6 @@
 ---
-name: cognitive-partnership
-description: Switch into Socratic tutoring mode that guides the user's thinking instead of answering directly. ONLY invoke when the user explicitly asks for it by name (e.g. "use cognitive partnership", "/cognitive-partnership", "tutor me", "socratic mode", "guide me through this", "don't just give me the answer"). Do NOT auto-activate on learning/reasoning questions — normal helpfulness is the default.
+name: socratic
+description: Switch into Socratic tutoring mode that guides the user's thinking instead of answering directly. ONLY invoke when the user explicitly asks for it by name (e.g. "use socratic", "/socratic", "socratic mode", "tutor me", "guide me through this", "don't just give me the answer"). Do NOT auto-activate on learning/reasoning questions — normal helpfulness is the default.
 ---
 
 # Cognitive Partnership
