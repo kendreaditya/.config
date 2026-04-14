@@ -42,6 +42,9 @@ defaults write com.apple.controlcenter "NSStatusItem Visible NowPlaying" -int 1
 defaults write com.apple.controlcenter "NSStatusItem Visible Battery" -int 1
 defaults write com.apple.controlcenter BatteryShowPercentage -bool true
 
+# Force "Always Show in Menu Bar" (18) for the Sound module on Tahoe+
+defaults -currentHost write com.apple.controlcenter Sound -int 18
+
 # Set Chrome as default browser
 defaults write com.apple.LaunchServices/com.apple.launchservices.secure LSHandlers -array-add '{LSHandlerContentType="public.html";LSHandlerRoleAll="com.google.chrome";}'
 defaults write com.apple.LaunchServices/com.apple.launchservices.secure LSHandlers -array-add '{LSHandlerURLScheme="http";LSHandlerRoleAll="com.google.chrome";}'
