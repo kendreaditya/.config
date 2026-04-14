@@ -19,6 +19,7 @@ import subprocess
 import sys
 import urllib.request
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -76,12 +77,11 @@ def png_dims(head: bytes) -> tuple[int, int] | None:
 
 def probe_dims(url: str) -> tuple[int, int] | None:
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": UA, "Range": "bytes=0-131072"})
-        with urllib.request.urlopen(req, timeout=15) as r:
-            head = r.read(131072)
+        req = urllib.request.Request(url, headers={"User-Agent": UA, "Range": "bytes=0-16384"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            head = r.read(16384)
         return jpeg_dims(head) or png_dims(head)
-    except Exception as e:
-        log(f"  probe failed {url}: {e}")
+    except Exception:
         return None
 
 
@@ -130,85 +130,88 @@ def source_apod(limit: int = 7) -> list[dict]:
         log(f"apod feed failed: {e}")
         return []
     root = ET.fromstring(data)
-    items = root.findall(".//item")[:limit]
-    out = []
-    for item in items:
-        page = (item.findtext("link") or "").strip()
-        if not page:
-            continue
+    pages = [(item.findtext("link") or "").strip() for item in root.findall(".//item")[:limit]]
+    pages = [p for p in pages if p]
+
+    def resolve(page: str) -> dict | None:
         try:
             html = fetch(page).decode("utf-8", errors="replace")
-        except Exception as e:
-            log(f"  apod page failed {page}: {e}")
-            continue
+        except Exception:
+            return None
         m = re.search(r'<a\s+href="(image/\d{4}/[^"]+\.(?:jpg|jpeg|png))"', html, re.I)
         if not m:
-            continue
+            return None
         img_url = "https://apod.nasa.gov/apod/" + m.group(1)
         dims = probe_dims(img_url)
         if not dims:
-            continue
-        w, h = dims
+            return None
         title_match = re.search(r"<title>\s*APOD:\s*[^-]+-\s*([^<]+)</title>", html, re.I)
         title = (title_match.group(1).strip() if title_match else Path(m.group(1)).stem).strip()
-        out.append({
-            "source": "apod",
-            "title": title,
-            "author": "",
-            "url": img_url,
-            "w": w,
-            "h": h,
-        })
+        return {"source": "apod", "title": title, "author": "", "url": img_url, "w": dims[0], "h": dims[1]}
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        out = [r for r in pool.map(resolve, pages) if r]
     log(f"apod: {len(out)} candidates")
     return out
 
 
-def source_nikon(year: int | None = None) -> list[dict]:
-    if year is None:
-        year = dt.date.today().year
-    for y in (year, year - 1):
+def source_nikon(sample_size: int = 15) -> list[dict]:
+    """Pick a random year from the past decade of Small World competitions,
+    scrape its gallery, then probe a random sample of thumbnails in parallel."""
+    current = dt.date.today().year
+    years = list(range(current - 9, current + 1))
+    random.shuffle(years)
+    html = None
+    for y in years:
         gallery_url = f"https://www.nikonsmallworld.com/galleries/{y}-photomicrography-competition"
-        log(f"fetching Nikon Small World gallery {y}")
         try:
-            html = fetch(gallery_url).decode("utf-8", errors="replace")
-            if "photos/" in html or "thumbnails/" in html:
+            body = fetch(gallery_url).decode("utf-8", errors="replace")
+            if "thumbnails/" in body:
+                html = body
+                log(f"nikon: using gallery {y}")
                 break
-        except Exception as e:
-            log(f"nikon {y} failed: {e}")
+        except Exception:
             continue
-    else:
+    if not html:
+        log("nikon: no gallery fetched")
         return []
 
     pattern = re.compile(
         r"https://downloads\.microscope\.healthcare\.nikon\.com/smallworld/thumbnails/(\d{4})/([^\"'<> ]+\.(?:jpg|jpeg|png))",
         re.I,
     )
-    seen = set()
-    out = []
+    seen: set[str] = set()
+    entries: list[tuple[str, str]] = []
     for m in pattern.finditer(html):
         thumb_year, fname = m.group(1), m.group(2)
         if fname in seen:
             continue
         seen.add(fname)
-        full = f"https://www.nikonsmallworld.com/images/photos/{thumb_year}/{fname}"
-        dims = probe_dims(full)
-        if not dims:
-            alt = f"https://www.nikonsmallworld.com/images/photos/{thumb_year}/_photo1600/{fname}"
-            dims = probe_dims(alt)
+        entries.append((thumb_year, fname))
+    random.shuffle(entries)
+    entries = entries[:sample_size]
+
+    def resolve(e: tuple[str, str]) -> dict | None:
+        thumb_year, fname = e
+        for url in (
+            f"https://www.nikonsmallworld.com/images/photos/{thumb_year}/{fname}",
+            f"https://www.nikonsmallworld.com/images/photos/{thumb_year}/_photo1600/{fname}",
+        ):
+            dims = probe_dims(url)
             if dims:
-                full = alt
-        if not dims:
-            continue
-        w, h = dims
-        out.append({
-            "source": "nikon",
-            "title": fname.rsplit(".", 1)[0].replace("_", " "),
-            "author": "",
-            "url": full,
-            "w": w,
-            "h": h,
-        })
-    log(f"nikon: {len(out)} candidates")
+                return {
+                    "source": "nikon",
+                    "title": fname.rsplit(".", 1)[0].replace("_", " "),
+                    "author": "",
+                    "url": url,
+                    "w": dims[0],
+                    "h": dims[1],
+                }
+        return None
+
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        out = [r for r in pool.map(resolve, entries) if r]
+    log(f"nikon: {len(out)} candidates (sampled from {len(seen)})")
     return out
 
 
@@ -225,20 +228,10 @@ def display_ratio() -> float:
     return 16 / 10
 
 
-def pick(candidates: list[dict], target: float) -> dict | None:
-    """Pick a random source first, then the best aspect-ratio fit within it.
-
-    Rotating by source keeps variety — otherwise whichever source has more
-    widescreen images would dominate.
-    """
+def pick_best(candidates: list[dict], target: float) -> dict | None:
     if not candidates:
         return None
-    by_source: dict[str, list[dict]] = {}
-    for c in candidates:
-        by_source.setdefault(c["source"], []).append(c)
-    source = random.choice(list(by_source.keys()))
-    log(f"rolled source: {source} ({len(by_source[source])} in pool)")
-    return min(by_source[source], key=lambda c: abs(c["w"] / c["h"] - target))
+    return min(candidates, key=lambda c: abs(c["w"] / c["h"] - target))
 
 
 def download(cand: dict) -> Path:
@@ -274,16 +267,21 @@ def main() -> int:
     ratio = display_ratio()
     log(f"display ratio: {ratio:.4f}")
 
-    candidates: list[dict] = []
-    candidates += source_astrobin()
-    candidates += source_apod()
-    candidates += source_nikon()
+    sources = {"astrobin": source_astrobin, "apod": source_apod, "nikon": source_nikon}
+    order = list(sources.keys())
+    random.shuffle(order)
+    chosen = None
+    for name in order:
+        log(f"rolled source: {name}")
+        candidates = sources[name]()
+        chosen = pick_best(candidates, ratio)
+        if chosen:
+            break
+        log(f"{name} empty, falling back")
 
-    if not candidates:
-        log("no candidates available")
+    if not chosen:
+        log("no candidates available from any source")
         return 1
-
-    chosen = pick(candidates, ratio)
     log(
         f"picked [{chosen['source']}] {chosen['title']} "
         f"({chosen['w']}x{chosen['h']}, ratio={chosen['w']/chosen['h']:.3f}) -> {chosen['url']}"
