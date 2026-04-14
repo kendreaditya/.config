@@ -15,31 +15,33 @@ A skill for finding the best deals at Best Buy — combining new prices, open bo
 4. **Per-store inventory** — which specific stores have the open box unit physically on the shelf RIGHT NOW
 5. **Best deal comparison** — ranked by savings, with availability
 
+## Tool
+
+This skill is powered by the `bestbuy` CLI tool (installed at `~/.local/bin/bestbuy`, source at `~/.config/scripts/bestbuy`).
+
+```bash
+bestbuy --help                                          # show subcommands
+bestbuy stores 33620                                    # nearest Best Buy stores
+bestbuy search "macbook pro 14" --zip 33620 --brand Apple   # search + open box prices
+bestbuy stock "macbook pro 14" --zip 33620              # per-store physical inventory
+bestbuy stock --skus 6602748,6615860 --zip 33620        # check specific SKUs
+```
+
+The `stock` subcommand is the killer feature — it tells you which specific store has each open box unit physically on the shelf vs which need ship-to-store.
+
 ## Required setup
 
 - **Best Buy API key** — free from [developer.bestbuy.com](https://developer.bestbuy.com), set as `BBY_API_KEY` env var
-- **Python venv** with `requests` and `playwright` installed
-- **Chromium** for Playwright (uses `/opt/pw-browsers/chromium-1194/...` if available, else default)
-
-## Quick workflow
-
-```python
-# Run the bundled script:
-BBY_API_KEY=yourkey ZIP=33620 SEARCH="macbook pro 14" python3 scripts/bestbuy_search.py
-```
-
-For per-store open box inventory specifically:
-```python
-BBY_API_KEY=yourkey ZIP=33620 python3 scripts/bestbuy_store_inventory.py
-```
+- **Python venv** with `requests`, `click`, and `playwright` (auto-loaded via `_utils.ensure_config_venv()`)
+- **Chromium for Playwright** — uses `/opt/pw-browsers/chromium-1194/...` if available, else default
 
 ## Critical gotchas — learned the hard way
 
-These are the specific bugs and limitations you'll hit if you don't know them. Don't skip:
+These are the specific bugs and limitations that wasted hours. The `bestbuy` CLI handles all of these correctly. Don't rewrite the logic without understanding them:
 
 ### 1. Beta Open Box API: query SKUs INDIVIDUALLY, not in batches
 
-The endpoint `beta/products/openBox(sku in(SKU1,SKU2,...))` is supposed to accept up to 100 SKUs in one call, but **it silently drops most results** when batched. Out of 27 MacBook SKUs in one batch query, only 10 came back. Querying each SKU individually returned 20+. Always loop:
+The endpoint `beta/products/openBox(sku in(SKU1,SKU2,...))` is supposed to accept up to 100 SKUs in one call, but **silently drops most results** when batched. Out of 27 MacBook SKUs in one batch query, only 10 came back. Querying each SKU individually returned 20+. Always loop:
 
 ```python
 for sku in skus:
@@ -53,7 +55,6 @@ for sku in skus:
 The beta API returns conditions as lowercase: `"excellent"`, `"good"`, `"fair"`.
 The GraphQL fulfillment endpoint requires uppercase with prefix: `"OPEN_BOX_EXCELLENT"`, `"OPEN_BOX_GOOD"`, `"OPEN_BOX_FAIR"`.
 
-When converting between them:
 ```python
 graphql_cond = f"OPEN_BOX_{api_cond.upper()}"  # excellent -> OPEN_BOX_EXCELLENT
 ```
@@ -62,9 +63,9 @@ If you forget this, the GraphQL endpoint returns errors silently and every store
 
 ### 3. Per-store open box inventory: use the GET fulfillment endpoint correctly
 
-There are TWO ways to query the GraphQL fulfillment endpoint, and they return different things:
+Two ways to query the GraphQL fulfillment endpoint return different things:
 
-**Wrong way** — `searchNearby: true, showNearbyLocations: true` returns the same `instoreInventoryAvailable` value for ALL stores. This is just a global "exists in network" flag, not per-store inventory.
+**Wrong way** — `searchNearby: true, showNearbyLocations: true` returns the same `instoreInventoryAvailable` value for ALL stores. Just a global "exists in network" flag.
 
 **Right way** — query each store INDIVIDUALLY without `searchNearby`:
 ```python
@@ -81,9 +82,9 @@ variables = {
 url = f"https://www.bestbuy.com/gateway/graphql/fulfillment?variables={urllib.parse.quote(json.dumps(variables))}"
 ```
 
-Then check `data.fulfillmentOptions.ispuDetails[0].ispuAvailability[0].instoreInventoryAvailable`. When it's `true`, the unit is physically at THAT specific store. When `false` but `pickupEligible: true`, it can be ship-to-store.
+Check `data.fulfillmentOptions.ispuDetails[0].ispuAvailability[0].instoreInventoryAvailable`. When `true`, the unit is physically at THAT store. When `false` but `pickupEligible: true`, ship-to-store works.
 
-The button state interprets:
+Button state interpretation:
 - `ADD_TO_CART` = available for purchase (likely on shelf or shippable)
 - `CHECK_STORES` = exists somewhere but NOT at this specific store
 - `SOLD_OUT` = no units anywhere
@@ -105,16 +106,15 @@ url = "https://api.bestbuy.com/v1/products(search=macbook%20pro%2014)"
 
 ### 6. Free tier rate limits
 
-- ~2 requests/second across endpoints — add `time.sleep(0.3-0.5)` between calls
+- ~2 requests/second across endpoints — `time.sleep(0.3-0.5)` between calls
 - Pagination breaks past page 3 — use `pageSize=100, page=1` and filter locally
-- Stores call + product call back-to-back: add a 0.5s delay between
+- Stores call + product call back-to-back: add 0.5s delay between
 
 ### 7. Playwright in proxied environments
 
-If `HTTPS_PROXY` env var is set (e.g., cloud sandboxes), pass it to Chromium:
+If `HTTPS_PROXY` env var is set (cloud sandboxes), pass it to Chromium:
 ```python
 proxy_url = os.environ.get("HTTPS_PROXY")
-proxy_cfg = None
 if proxy_url:
     pp = urlparse(proxy_url)
     proxy_cfg = {"server": f"http://{pp.hostname}:{pp.port}",
@@ -126,25 +126,22 @@ Without this, you get `ERR_INVALID_AUTH_CREDENTIALS` on every page load.
 
 ### 8. "Ghost listings" — API price exists but no inventory anywhere
 
-The beta API caches prices and may show open box deals that are actually sold out everywhere. ALWAYS verify availability via the per-store check before recommending a deal. A $706 M3 MacBook Pro that's sold out nationwide is misleading.
+The beta API caches prices and may show open box deals that are actually sold out everywhere. **Always verify availability via the per-store check before recommending a deal.** A $706 M3 MacBook Pro that's sold out nationwide is misleading. The `bestbuy stock` subcommand handles this by showing real button states (SOLD vs STOCK vs ship).
 
 ## Workflow patterns
 
 ### Find best deals on a specific product line
 
-1. Get user's zip code (default to user's known location if mentioned)
-2. Get nearest stores: `v1/stores(area(ZIP,100))`, sort by distance, take 5-8
-3. Search products: `v1/products(search=QUERY&active=true&manufacturer=BRAND)`
-4. Filter results in Python (the API search is loose — match on name keywords)
-5. For EACH SKU individually, query open box prices from beta endpoint
-6. Build (sku, condition) tuples with prices
-7. For EACH (sku, condition, store) combo, query GraphQL fulfillment endpoint
-8. Aggregate: which units are physically IN STOCK at which specific stores
-9. Present as table sorted by either price or savings
+Just run `bestbuy stock`. It does:
+1. Get nearest stores via `v1/stores(area(ZIP,100))`
+2. Search products via `v1/products(search=...&active=true)`, filter to keyword matches
+3. For each SKU individually, query open box prices from beta endpoint
+4. For each (sku, condition, store) combo, query GraphQL fulfillment
+5. Print per-store grid + summary of what's physically on shelves
 
 ### Compare with other retailers
 
-If the user shares Amazon/other retailer prices (screenshots, copy/paste), build a side-by-side table. Best Buy usually wins on:
+If the user shares Amazon prices (screenshots, copy/paste), build a side-by-side table. Best Buy usually wins on:
 - High-end Pro/Max configs (open box discounts)
 - Configurations Amazon doesn't carry (e.g., 18-core M5 Pro)
 
@@ -177,8 +174,6 @@ Include the store ID in brackets — useful if user wants to call.
 
 ## Tampa-area store IDs (saved for reference)
 
-Common stores users in Tampa Bay area might want to check:
-
 | ID | Name | City |
 |----|------|------|
 | 561 | South Tampa | Tampa |
@@ -189,10 +184,3 @@ Common stores users in Tampa Bay area might want to check:
 | 1405 | Wesley Chapel | Wesley Chapel |
 | 885 | Port Richey | Port Richey |
 | 563 | Lakeland | Lakeland |
-
-## Bundled scripts
-
-- `scripts/bestbuy_search.py` — full product + open box price report
-- `scripts/bestbuy_store_inventory.py` — per-store inventory checker (the most useful one)
-
-Both accept `BBY_API_KEY` env var. Read them when adapting for new product searches — the patterns are reusable.

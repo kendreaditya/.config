@@ -1,0 +1,409 @@
+#!/usr/bin/env python3
+"""
+bestbuy - Best Buy product search + open box deal finder
+
+Subcommands:
+  stores  - list nearest Best Buy stores to a zip code
+  search  - search products + show open box prices
+  stock   - check which specific stores have open box units physically on shelf
+
+Examples:
+  bestbuy stores 33620
+  bestbuy search "macbook pro 14" --zip 33620 --brand Apple
+  bestbuy stock "macbook pro 14" --zip 33620
+  bestbuy stock --skus 6602748,6615860 --zip 33620
+"""
+import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _utils import ensure_config_venv
+ensure_config_venv()
+
+import json
+import time
+import urllib.parse
+from datetime import datetime
+
+import click
+import requests
+
+
+API_KEY = os.environ.get("BBY_API_KEY", "")
+DEFAULT_ZIP = "33620"
+
+
+# ── API helpers ──────────────────────────────────────────────────────────────
+
+def _check_key():
+    if not API_KEY:
+        click.echo("ERROR: export BBY_API_KEY=your_key  (free at developer.bestbuy.com)", err=True)
+        sys.exit(1)
+
+
+def fetch_stores(zip_code: str, n: int = 8, radius: int = 100):
+    """Get nearest Best Buy stores."""
+    time.sleep(0.5)
+    data = requests.get(
+        f"https://api.bestbuy.com/v1/stores(area({zip_code},{radius}))",
+        params={"apiKey": API_KEY, "format": "json", "pageSize": n},
+        timeout=15,
+    ).json()
+    return data.get("stores", [])
+
+
+def search_products(query: str, brand: str = "") -> dict:
+    """Search products. Returns {sku: name}."""
+    encoded = urllib.parse.quote(query)
+    filters = f"search={encoded}&active=true"
+    if brand:
+        filters += f"&manufacturer={urllib.parse.quote(brand)}"
+    time.sleep(0.5)
+    data = requests.get(
+        f"https://api.bestbuy.com/v1/products({filters})",
+        params={
+            "apiKey": API_KEY, "format": "json", "pageSize": 100, "page": 1,
+            "show": "sku,name,salePrice,regularPrice,onSale,inStoreAvailability,onlineAvailability",
+        },
+        timeout=15,
+    ).json()
+    keywords = query.lower().split()
+    products = {}
+    for p in data.get("products", []):
+        nl = p.get("name", "").lower()
+        if all(kw in nl for kw in keywords):
+            if any(skip in nl for skip in ["applecare", "refurbished", "case for", "cover for"]):
+                continue
+            products[str(p["sku"])] = p
+    return products
+
+
+def fetch_skus_by_id(skus: list[str]) -> dict:
+    """Look up product names for a list of SKUs (one query each)."""
+    products = {}
+    for sku in skus:
+        time.sleep(0.4)
+        try:
+            r = requests.get(
+                f"https://api.bestbuy.com/v1/products/{sku}.json",
+                params={"apiKey": API_KEY, "show": "sku,name,salePrice,regularPrice,onSale,inStoreAvailability,onlineAvailability"},
+                timeout=10,
+            ).json()
+            products[sku] = r
+        except Exception:
+            products[sku] = {"sku": sku, "name": f"SKU {sku}"}
+    return products
+
+
+def fetch_open_box(skus: list[str]) -> dict:
+    """Get open box prices per SKU (individual queries — batch silently drops results).
+
+    Returns: {(sku, condition): price}
+    """
+    prices = {}
+    for sku in skus:
+        try:
+            r = requests.get(
+                f"https://api.bestbuy.com/beta/products/openBox(sku in({sku}))",
+                params={"apiKey": API_KEY, "format": "json"}, timeout=10,
+            )
+            if r.status_code != 200:
+                time.sleep(1.0)
+                continue
+            for item in r.json().get("results", []):
+                for o in item.get("offers", []):
+                    prices[(sku, o["condition"])] = o["prices"]["current"]
+        except Exception as e:
+            click.echo(f"  [warn] SKU {sku}: {e}", err=True)
+        time.sleep(0.5)
+    return prices
+
+
+# ── Per-store inventory check (Playwright) ───────────────────────────────────
+
+def check_store_inventory(sku_cond_pairs: list, stores: list, zip_code: str) -> dict:
+    """Check which specific stores have each open box unit physically in stock.
+
+    Uses Playwright + GraphQL fulfillment endpoint. Each (sku, condition, store)
+    combo is queried individually — this is the only reliable way to get real
+    per-store inventory.
+
+    Returns: {(sku, condition, store_id): (button_state, has_inventory)}
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        click.echo("ERROR: playwright not installed. Run: pip install playwright && playwright install chromium", err=True)
+        sys.exit(1)
+
+    proxy_url = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
+    proxy_cfg = None
+    if proxy_url:
+        from urllib.parse import urlparse
+        pp = urlparse(proxy_url)
+        proxy_cfg = {
+            "server": f"http://{pp.hostname}:{pp.port}",
+            "username": pp.username or "",
+            "password": pp.password or "",
+        }
+
+    chromium_path = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
+    if not os.path.exists(chromium_path):
+        chromium_path = None
+
+    results = {}
+    total = len(sku_cond_pairs) * len(stores)
+
+    with sync_playwright() as p:
+        launch_args = {
+            "headless": True,
+            "args": ["--no-sandbox", "--disable-gpu"],
+            "proxy": proxy_cfg,
+        }
+        if chromium_path:
+            launch_args["executable_path"] = chromium_path
+
+        browser = p.chromium.launch(**launch_args)
+        ctx = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+            ignore_https_errors=True,
+        )
+        page = ctx.new_page()
+        try:
+            page.goto("https://www.bestbuy.com/", wait_until="domcontentloaded", timeout=20000)
+            time.sleep(1)
+        except Exception:
+            pass
+
+        with click.progressbar(length=total, label="Checking stores") as bar:
+            for sku, cond in sku_cond_pairs:
+                for s in stores:
+                    btn, inv = _query_one(page, sku, cond, str(s["storeId"]), zip_code)
+                    results[(sku, cond, str(s["storeId"]))] = (btn, inv)
+                    bar.update(1)
+                    time.sleep(0.2)
+
+        browser.close()
+
+    return results
+
+
+def _query_one(page, sku: str, condition: str, store_id: str, zip_code: str) -> tuple:
+    """Single GraphQL fulfillment query. condition MUST be OPEN_BOX_X format."""
+    variables = {
+        "fulfillmentOptionsInput": {
+            "sku": sku,
+            "condition": condition,
+            "inStorePickup": {"storeId": store_id},
+            "shipping": {"destinationZipCode": zip_code, "effectivePlanPaidMembership": "NULL"},
+            "buttonState": {
+                "context": "PDP", "destinationZipCode": zip_code,
+                "storeId": store_id, "effectivePlanPaidMembership": "NULL",
+            },
+        }
+    }
+    url = f"https://www.bestbuy.com/gateway/graphql/fulfillment?variables={urllib.parse.quote(json.dumps(variables))}"
+    try:
+        resp = page.goto(url, wait_until="domcontentloaded", timeout=10000)
+        if resp and resp.status == 200:
+            data = resp.json()
+            fo = data.get("data", {}).get("fulfillmentOptions", {})
+            btn = fo.get("buttonStates", [{}])[0].get("buttonState", "?")
+            inv = False
+            for ispu in fo.get("ispuDetails", []):
+                for a in (ispu.get("ispuAvailability") or []):
+                    if a.get("instoreInventoryAvailable"):
+                        inv = True
+            return btn, inv
+    except Exception:
+        pass
+    return "ERROR", False
+
+
+# ── Output formatting ────────────────────────────────────────────────────────
+
+def _cell_for_button(btn: str, inv: bool) -> str:
+    if inv:
+        return "STOCK"
+    if btn == "ADD_TO_CART":
+        return "ship"
+    if btn == "CHECK_STORES":
+        return "—"
+    if btn == "SOLD_OUT":
+        return "SOLD"
+    return btn[:5]
+
+
+# ── CLI ──────────────────────────────────────────────────────────────────────
+
+@click.group()
+@click.version_option("1.0")
+def cli():
+    """Best Buy product search + open box deal finder."""
+    pass
+
+
+@cli.command()
+@click.argument("zip_code")
+@click.option("-n", "--limit", default=8, help="Number of stores to show")
+@click.option("-r", "--radius", default=100, help="Search radius in miles")
+def stores(zip_code, limit, radius):
+    """List nearest Best Buy stores to a zip code."""
+    _check_key()
+    stores = fetch_stores(zip_code, n=limit, radius=radius)
+    if not stores:
+        click.echo("No stores found.")
+        return
+    click.echo(f"\n{limit} nearest Best Buy stores to {zip_code}:\n")
+    for s in stores:
+        click.echo(f"  [{s['storeId']:>5}] {s['name']:<22} {s['city']}, {s['region']:<3}  {s.get('distance','?'):>5} mi  {s.get('phone','')}")
+    click.echo()
+
+
+@cli.command()
+@click.argument("query")
+@click.option("--zip", "zip_code", default=DEFAULT_ZIP, help="Zip code (default 33620)")
+@click.option("--brand", default="", help="Manufacturer filter (e.g., Apple, Sony)")
+@click.option("-n", "--n-stores", default=5, help="Number of nearest stores to list")
+def search(query, zip_code, brand, n_stores):
+    """Search products + show open box prices (no per-store inventory check)."""
+    _check_key()
+
+    click.echo(f"\nSearching '{query}' near zip {zip_code}...")
+    stores = fetch_stores(zip_code, n=n_stores)
+    products = search_products(query, brand=brand)
+    click.echo(f"  {len(products)} matching products")
+
+    if not products:
+        click.echo("\n  No products matched. Try broader terms or remove --brand.")
+        return
+
+    click.echo(f"  Fetching open box prices ({len(products)} individual queries)...")
+    ob = fetch_open_box(list(products.keys()))
+    has_ob = sum(1 for sku in products if any(s == sku for s, _ in ob))
+    click.echo(f"  {has_ob} SKUs have open box deals\n")
+
+    # Stores
+    click.echo(f"\n{n_stores} NEAREST STORES:")
+    for s in stores:
+        click.echo(f"  [{s['storeId']}] {s['name']:<20}  {s['city']}, {s['region']}  {s.get('distance','?')} mi  {s.get('phone','')}")
+
+    # Products table
+    click.echo(f"\n{'─'*100}")
+    click.echo(f"{'SKU':<8} {'Name':<55} {'New':>9} {'Exc':>9} {'Good':>9} {'Fair':>9} {'Save':>10}")
+    click.echo("─" * 100)
+
+    sorted_products = sorted(products.values(), key=lambda p: p.get("salePrice") or p.get("regularPrice") or 0)
+    for p in sorted_products:
+        sku = str(p["sku"])
+        new_price = p.get("salePrice") or p.get("regularPrice") or 0
+        ex = ob.get((sku, "excellent"))
+        gd = ob.get((sku, "good"))
+        fr = ob.get((sku, "fair"))
+        best_ob = min([x for x in [ex, gd, fr] if x], default=None)
+        save = round(new_price - best_ob, 2) if best_ob else 0
+
+        ex_s = f"${ex:,.0f}" if ex else "—"
+        gd_s = f"${gd:,.0f}" if gd else "—"
+        fr_s = f"${fr:,.0f}" if fr else "—"
+        save_s = f"${save:,.0f}" if save > 0 else "—"
+
+        click.echo(f"{sku:<8} {p['name'][:55]:<55} ${new_price:>8,.0f} {ex_s:>9} {gd_s:>9} {fr_s:>9} {save_s:>10}")
+
+    click.echo(f"\nTip: run `bestbuy stock '{query}' --zip {zip_code}` for per-store physical inventory\n")
+
+
+@cli.command()
+@click.argument("query", required=False)
+@click.option("--zip", "zip_code", default=DEFAULT_ZIP, help="Zip code (default 33620)")
+@click.option("--brand", default="", help="Manufacturer filter")
+@click.option("--skus", default="", help="Comma-separated SKUs (skip search)")
+@click.option("-n", "--n-stores", default=8, help="Number of nearest stores to check")
+def stock(query, zip_code, brand, skus, n_stores):
+    """Check which stores have open box units physically on shelf."""
+    _check_key()
+    if not query and not skus:
+        click.echo("ERROR: provide a search query or --skus", err=True)
+        sys.exit(1)
+
+    click.echo(f"\nStep 1: Get nearest {n_stores} stores to zip {zip_code}...")
+    stores = fetch_stores(zip_code, n=n_stores)
+    if not stores:
+        click.echo("  No stores found"); return
+    click.echo(f"  {len(stores)} stores found")
+
+    click.echo(f"\nStep 2: Find products...")
+    if skus:
+        sku_list = [s.strip() for s in skus.split(",")]
+        product_data = fetch_skus_by_id(sku_list)
+        products = {sku: data.get("name", f"SKU {sku}") for sku, data in product_data.items()}
+    else:
+        product_data = search_products(query, brand=brand)
+        products = {sku: p["name"] for sku, p in product_data.items()}
+    click.echo(f"  {len(products)} products")
+
+    if not products:
+        return
+
+    click.echo(f"\nStep 3: Get open box prices (individual queries)...")
+    prices = fetch_open_box(list(products.keys()))
+    n_offers = len(prices)
+    n_skus_with_ob = len(set(s for s, _ in prices))
+    click.echo(f"  {n_offers} offers across {n_skus_with_ob} SKUs")
+
+    if not prices:
+        click.echo("  No open box deals available.")
+        return
+
+    # Convert to OPEN_BOX_X format for GraphQL
+    sku_cond_pairs = [(sku, f"OPEN_BOX_{cond.upper()}") for (sku, cond) in prices.keys()]
+
+    click.echo(f"\nStep 4: Check {len(sku_cond_pairs)} offers × {len(stores)} stores...")
+    inventory = check_store_inventory(sku_cond_pairs, stores, zip_code)
+
+    # Per-store grid
+    click.echo()
+    header = f'{"SKU":<8} {"Model":<35} {"Cond":<5} {"Price":>7}'
+    for s in stores:
+        sn = s["name"][:9]
+        header += f' {sn:<10}'
+    click.echo(header)
+    click.echo("─" * len(header))
+
+    for sku, label in products.items():
+        for cond in ["excellent", "good", "fair"]:
+            price = prices.get((sku, cond))
+            if not price:
+                continue
+            full_cond = f"OPEN_BOX_{cond.upper()}"
+            row = f'{sku:<8} {label[:35]:<35} {cond[:4]:<5} ${price:>6,.0f}'
+            for s in stores:
+                btn, inv = inventory.get((sku, full_cond, str(s["storeId"])), ("?", False))
+                row += f' {_cell_for_button(btn, inv):<10}'
+            click.echo(row)
+
+    # Summary: physically in stock
+    click.echo(f"\n{'═'*90}")
+    click.echo("  ITEMS PHYSICALLY IN STOCK AT SPECIFIC STORES")
+    click.echo("═" * 90 + "\n")
+
+    in_stock = []
+    for (sku, cond, sid), (btn, inv) in inventory.items():
+        if inv:
+            cond_short = cond.replace("OPEN_BOX_", "").lower()
+            price = prices.get((sku, cond_short), 0)
+            store = next((s for s in stores if str(s["storeId"]) == sid), None)
+            sname = store["name"] if store else f"Store {sid}"
+            in_stock.append((price, products.get(sku, "?"), cond_short, sname, sid))
+
+    in_stock.sort()
+    if in_stock:
+        for price, label, cond, sname, sid in in_stock:
+            click.echo(f"  ${price:>8,.2f}  {label[:50]:<50} {cond:<10} @ {sname} [{sid}]")
+    else:
+        click.echo("  No units physically on shelves in this area.")
+        click.echo("  (Items marked 'ship' can be ordered for delivery or ship-to-store pickup.)")
+    click.echo()
+
+
+if __name__ == "__main__":
+    cli()
