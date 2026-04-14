@@ -122,6 +122,47 @@ def source_astrobin() -> list[dict]:
     return out
 
 
+def source_apod(limit: int = 7) -> list[dict]:
+    log("fetching NASA APOD feed")
+    try:
+        data = fetch("https://apod.nasa.gov/apod.rss")
+    except Exception as e:
+        log(f"apod feed failed: {e}")
+        return []
+    root = ET.fromstring(data)
+    items = root.findall(".//item")[:limit]
+    out = []
+    for item in items:
+        page = (item.findtext("link") or "").strip()
+        if not page:
+            continue
+        try:
+            html = fetch(page).decode("utf-8", errors="replace")
+        except Exception as e:
+            log(f"  apod page failed {page}: {e}")
+            continue
+        m = re.search(r'<a\s+href="(image/\d{4}/[^"]+\.(?:jpg|jpeg|png))"', html, re.I)
+        if not m:
+            continue
+        img_url = "https://apod.nasa.gov/apod/" + m.group(1)
+        dims = probe_dims(img_url)
+        if not dims:
+            continue
+        w, h = dims
+        title_match = re.search(r"<title>\s*APOD:\s*[^-]+-\s*([^<]+)</title>", html, re.I)
+        title = (title_match.group(1).strip() if title_match else Path(m.group(1)).stem).strip()
+        out.append({
+            "source": "apod",
+            "title": title,
+            "author": "",
+            "url": img_url,
+            "w": w,
+            "h": h,
+        })
+    log(f"apod: {len(out)} candidates")
+    return out
+
+
 def source_nikon(year: int | None = None) -> list[dict]:
     if year is None:
         year = dt.date.today().year
@@ -235,6 +276,7 @@ def main() -> int:
 
     candidates: list[dict] = []
     candidates += source_astrobin()
+    candidates += source_apod()
     candidates += source_nikon()
 
     if not candidates:
