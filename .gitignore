@@ -9,6 +9,11 @@ config-venv/
 zed/prompts/prompts-library-db.0.mdb/
 zed/embeddings/
 zed/.tmp*
+zed/conversations/
+
+# Session tokens (do not commit)
+twscrape/accounts.db
+github-copilot/
 
 # Claude Code - ignore runtime/state, track behavioral files only
 claude/*

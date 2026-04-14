@@ -38,7 +38,7 @@ export HOMEBREW_NO_AUTO_UPDATE=1
 brew tap steipete/tap
 brew tap assemblyai/assemblyai
 brew install mas imagemagick cmake gcc ffmpeg gh wget curl python@3.12 \
-  fzf neovim yt-dlp yq tmux atuin vim neofetch node git zsh ripgrep \
+  fzf neovim yt-dlp yq tmux atuin vim fastfetch node git zsh ripgrep \
   ocrmypdf tesseract graphviz fswatch nvm deno oven-sh/bun/bun ncdu himalaya \
   steipete/tap/gogcli steipete/tap/imsg assemblyai
 
