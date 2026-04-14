@@ -24,6 +24,7 @@ claude/*
 !claude/commands/
 !claude/skills/
 !claude/memory/
+!claude/output-styles/
 claude/docs/
 
 # AssemblyAI - contains API token
