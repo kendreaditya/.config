@@ -46,3 +46,9 @@ waveterm/
 
 # Packaged skill files
 *.skill
+
+# Skill runtime state (auth tokens, learned patterns, session data)
+claude/skills/*/state/
+
+# Environment secrets
+.env
