@@ -40,10 +40,16 @@ defaults write com.apple.controlcenter "NSStatusItem Visible Sound" -int 1
 defaults write com.apple.controlcenter "NSStatusItem Visible Bluetooth" -int 1
 defaults write com.apple.controlcenter "NSStatusItem Visible NowPlaying" -int 1
 defaults write com.apple.controlcenter "NSStatusItem Visible Battery" -int 1
+defaults write com.apple.controlcenter "NSStatusItem Visible FocusModes" -int 1
+defaults write com.apple.controlcenter "NSStatusItem Visible Display" -int 1
+defaults write com.apple.controlcenter "NSStatusItem Visible KeyboardBrightness" -int 1
 defaults write com.apple.controlcenter BatteryShowPercentage -bool true
 
-# Force "Always Show in Menu Bar" (18) for the Sound module on Tahoe+
+# Force "Always Show in Menu Bar" (18) for Control Center modules on Tahoe+
 defaults -currentHost write com.apple.controlcenter Sound -int 18
+defaults -currentHost write com.apple.controlcenter FocusModes -int 18
+defaults -currentHost write com.apple.controlcenter Display -int 18
+defaults -currentHost write com.apple.controlcenter KeyboardBrightness -int 18
 
 # Set Chrome as default browser
 defaults write com.apple.LaunchServices/com.apple.launchservices.secure LSHandlers -array-add '{LSHandlerContentType="public.html";LSHandlerRoleAll="com.google.chrome";}'
