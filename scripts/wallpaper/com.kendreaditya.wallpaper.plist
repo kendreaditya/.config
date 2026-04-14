@@ -3,13 +3,12 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.kendreaditya.astrobin-wallpaper</string>
+    <string>com.kendreaditya.wallpaper</string>
 
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/bash</string>
-        <string>-lc</string>
-        <string>$HOME/.config/scripts/astrobin-wallpaper/astrobin-wallpaper.sh</string>
+        <string>/usr/bin/python3</string>
+        <string>/Users/kendreaditya/.config/scripts/wallpaper/wallpaper.py</string>
     </array>
 
     <key>StartCalendarInterval</key>
@@ -22,8 +21,8 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>/tmp/astrobin-wallpaper.out</string>
+    <string>/tmp/wallpaper.out</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/astrobin-wallpaper.err</string>
+    <string>/tmp/wallpaper.err</string>
 </dict>
 </plist>
