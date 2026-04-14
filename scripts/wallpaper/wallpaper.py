@@ -245,6 +245,13 @@ def download(cand: dict) -> Path:
 
 
 def set_wallpaper(path: Path) -> None:
+    """Prefer desktoppr (uses NSWorkspace, respects 'Show on all Spaces').
+    Fall back to AppleScript if desktoppr isn't installed."""
+    for cmd in (["/usr/local/bin/desktoppr", "all", str(path)],
+                ["/opt/homebrew/bin/desktoppr", "all", str(path)]):
+        if Path(cmd[0]).exists():
+            subprocess.run(cmd, check=True)
+            return
     script = f'tell application "System Events" to tell every desktop to set picture to "{path}"'
     subprocess.run(["osascript", "-e", script], check=True)
 
