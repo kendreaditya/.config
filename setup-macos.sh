@@ -40,7 +40,7 @@ brew tap assemblyai/assemblyai
 brew install mas imagemagick cmake gcc ffmpeg gh wget curl python@3.12 \
   fzf neovim yt-dlp yq tmux atuin vim fastfetch node git zsh ripgrep \
   ocrmypdf tesseract graphviz fswatch nvm deno oven-sh/bun/bun ncdu himalaya \
-  steipete/tap/gogcli steipete/tap/imsg assemblyai
+  steipete/tap/gogcli steipete/tap/imsg assemblyai gemini-cli
 
 # Install global npm CLIs
 npm install -g wrangler vercel pnpm typescript tailwindcss eslint yarn
@@ -52,6 +52,7 @@ sh -c 'curl -fLo "${XDG_DATA_HOME:-$HOME/.local/share}"/nvim/site/autoload/plug.
 brew install --cask --force raycast zed todoist tomatobar zoom alt-tab bruno \
   hiddenbar blackhole-2ch ollama amethyst hammerspoon karabiner-elements \
   visual-studio-code google-chrome warp ghostty logseq obsidian postman \
+  claude claude-code codex codex-app \
   protonvpn cloudflare-warp finetune
 
 # Install Mac App Store apps (requires App Store sign-in)
@@ -111,12 +112,6 @@ ln -sfn ~/.config/claude/commands ~/.claude/commands
 ln -sfn ~/.config/claude/agents ~/.claude/agents
 ln -sfn ~/.config/claude/settings.json ~/.claude/settings.json
 ln -sfn ~/.config/claude/CLAUDE.md ~/.claude/CLAUDE.md
-
-# Install Claude Code CLI
-if ! command -v claude &> /dev/null; then
-  echo "Installing Claude Code..."
-  curl -fsSL https://claude.ai/install.sh | bash
-fi
 
 # Download Claude Code docs locally (scripts symlinked above)
 ~/.local/bin/sync-docs || echo "Warning: sync-docs failed (may need 'requests' — install manually)"
