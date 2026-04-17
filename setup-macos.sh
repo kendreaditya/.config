@@ -121,6 +121,11 @@ ln -sfn ~/.config/claude/agents ~/.claude/agents
 ln -sfn ~/.config/claude/settings.json ~/.claude/settings.json
 ln -sfn ~/.config/claude/CLAUDE.md ~/.claude/CLAUDE.md
 
+# Codex (CLI + desktop app) reads ~/.codex/skills/**/SKILL.md recursively.
+# Expose Claude skills as a subdirectory so Codex's built-ins (.system, codex-primary-runtime) are preserved.
+mkdir -p ~/.codex/skills
+ln -sfn ~/.config/claude/skills ~/.codex/skills/user
+
 # Download Claude Code docs locally (scripts symlinked above)
 ~/.local/bin/sync-docs || echo "Warning: sync-docs failed (may need 'requests' — install manually)"
 
