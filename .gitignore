@@ -3,7 +3,12 @@ nvim/undodir/
 flutter/
 peazip/
 grammarly-languageserver/
-raycast/
+raycast/*
+!raycast/settings.json
+!raycast/build-rayconfig.sh
+!raycast/build-rayconfig.jq
+!raycast/README.md
+!raycast/Raycast.rayconfig
 yarn/
 config-venv/
 zed/prompts/prompts-library-db.0.mdb/

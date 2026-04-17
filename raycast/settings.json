@@ -1,0 +1,165 @@
+{
+  "_note": "Reference only — not read by Raycast. Decrypted from Raycast.rayconfig export and trimmed to hotkeys/aliases/snippets for human inspection and version control.",
+  "hotkeys": [
+    {
+      "hotkey": "Shift-Command-9",
+      "target_key": "builtin_command_clipboardHistory",
+      "target_path": null,
+      "type": "command"
+    },
+    {
+      "hotkey": "Option-4",
+      "target_key": "builtin_command_windowManagementLeftHalf",
+      "target_path": null,
+      "type": "command"
+    },
+    {
+      "hotkey": "Option-38",
+      "target_key": "builtin_command_windowManagementMaximize",
+      "target_path": null,
+      "type": "command"
+    },
+    {
+      "hotkey": "Option-37",
+      "target_key": "builtin_command_windowManagementRightHalf",
+      "target_path": null,
+      "type": "command"
+    }
+  ],
+  "aliases": [
+    {
+      "alias": "s",
+      "target_key": "builtin_command_fileSearch",
+      "target_path": null
+    },
+    {
+      "alias": "settings",
+      "target_key": "com.apple.systempreferences",
+      "target_path": "/System/Applications/System Settings.app"
+    }
+  ],
+  "snippets": [
+    {
+      "name": "Primary Email",
+      "text": "<FILL_IN_PRIMARY_EMAIL>",
+      "keyword": ";em"
+    },
+    {
+      "name": "Secondary Email",
+      "text": "<FILL_IN_SECONDARY_EMAIL>",
+      "keyword": ";em2"
+    },
+    {
+      "name": "Mobile Number",
+      "text": "<FILL_IN_PHONE>",
+      "keyword": ";ph"
+    },
+    {
+      "name": "Mailing Address",
+      "text": "<FILL_IN_ADDRESS>",
+      "keyword": ";addr"
+    },
+    {
+      "name": "GitHub Username",
+      "text": "kendreaditya",
+      "keyword": ";gh"
+    },
+    {
+      "name": "ISO Date (YYYY-MM-DD)",
+      "text": "{date format=\"yyyy-MM-dd\"}",
+      "keyword": ";iso"
+    },
+    {
+      "name": "Date — Long Form",
+      "text": "{date format=\"EEEE, MMMM d, yyyy\"}",
+      "keyword": ";date"
+    },
+    {
+      "name": "Time — 24h",
+      "text": "{time format=\"HH:mm\"}",
+      "keyword": ";time"
+    },
+    {
+      "name": "ISO Timestamp",
+      "text": "{date format=\"yyyy-MM-dd\"}T{time format=\"HH:mm:ssXXX\"}",
+      "keyword": ";now"
+    },
+    {
+      "name": "Tomorrow (date)",
+      "text": "{date format=\"yyyy-MM-dd\" offset=\"+1d\"}",
+      "keyword": ";tmrw"
+    },
+    {
+      "name": "One Week From Now",
+      "text": "{date format=\"yyyy-MM-dd\" offset=\"+7d\"}",
+      "keyword": ";1w"
+    },
+    {
+      "name": "UUID v4",
+      "text": "{uuid}",
+      "keyword": ";uuid"
+    },
+    {
+      "name": "Email — Follow Up",
+      "text": "Hi {argument name=\"name\"},\n\nJust circling back on this — wanted to make sure it didn't slip through. Let me know if there's anything I can do to help move it forward.\n\nThanks,\nAditya",
+      "keyword": ";fup"
+    },
+    {
+      "name": "Lorem Ipsum (short)",
+      "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+      "keyword": ";lorem"
+    }
+  ],
+  "extensions": [
+    {
+      "name": "kill-process",
+      "title": "Kill Process",
+      "owner": "rolandleth"
+    },
+    {
+      "name": "color-picker",
+      "title": "Color Picker",
+      "owner": "thomas"
+    },
+    {
+      "name": "linear",
+      "title": "Linear",
+      "owner": "linear"
+    },
+    {
+      "name": "translate",
+      "title": "Google Translate",
+      "owner": "gebeto"
+    },
+    {
+      "name": "shell",
+      "title": "Shell",
+      "owner": "asubbotin"
+    },
+    {
+      "name": "visual-studio-code",
+      "title": "Visual Studio Code",
+      "owner": "thomas"
+    },
+    {
+      "name": "raindrop-io",
+      "title": "Raindrop.io",
+      "owner": "lardissone"
+    },
+    {
+      "name": "google-drive",
+      "title": "Google Drive",
+      "owner": "vishaltelangre"
+    },
+    {
+      "name": "perplexity",
+      "title": "Perplexity",
+      "owner": "third774"
+    },
+    {
+      "name": "chatgpt",
+      "title": "ChatGPT",
+      "owner": "abielzulio"
+    }
+  ]
+}
