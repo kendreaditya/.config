@@ -244,72 +244,66 @@ def download(cand: dict) -> Path:
     return out
 
 
-def _sync_spaces() -> None:
-    """Force every Space and Display to use the same wallpaper config.
+def set_wallpaper(path: Path) -> None:
+    """Set the wallpaper by writing Index.plist directly.
 
-    On macOS Tahoe the wallpaper agent stores per-Space overrides in
-    Index.plist. Even with 'Show on all Spaces' toggled, a programmatic
-    setter only updates the current Space's entry; others stay stale.
-    This copies the AllSpacesAndDisplays entry into every Spaces/* and
-    Displays/* entry, then restarts the wallpaper agent.
+    On macOS Tahoe (26.x) NSWorkspace.setDesktopImageURL:forScreen:options:error:
+    is a silent no-op — the WallpaperAgent reads from
+    ~/Library/Application Support/com.apple.wallpaper/Store/Index.plist and
+    NSWorkspace no longer writes there. We synthesize the nested Configuration
+    bplist ({type: imageFile, url: {relative: file:///…}}) and splat it into
+    SystemDefault, every Display, and every Space entry, then restart the agent.
     """
     import plistlib
     store = Path.home() / "Library/Application Support/com.apple.wallpaper/Store/Index.plist"
     if not store.exists():
+        log(f"  wallpaper store missing: {store}")
         return
     try:
         data = plistlib.loads(store.read_bytes())
     except Exception as e:
-        log(f"  space sync: plist read failed: {e}")
+        log(f"  plist read failed: {e}")
         return
-    # SystemDefault carries Desktop.Content; AllSpacesAndDisplays only has Idle.
-    source = data.get("SystemDefault")
-    if not source or "Desktop" not in source:
-        return
-    src_content = source["Desktop"]["Content"]
 
-    def overwrite_desktop(container: dict) -> None:
-        if "Desktop" in container:
-            container["Desktop"]["Content"] = src_content
+    config = plistlib.dumps(
+        {"type": "imageFile", "url": {"relative": f"file://{path.as_posix()}"}},
+        fmt=plistlib.FMT_BINARY,
+    )
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0, tzinfo=None)
 
+    def set_desktop(container: dict) -> None:
+        desktop = container.setdefault("Desktop", {})
+        content = desktop.setdefault("Content", {})
+        choices = content.get("Choices") or []
+        if not choices:
+            choices = [{"Files": [], "Provider": "com.apple.wallpaper.choice.image"}]
+            content["Choices"] = choices
+        choices[0]["Configuration"] = config
+        choices[0].setdefault("Files", [])
+        choices[0]["Provider"] = "com.apple.wallpaper.choice.image"
+        content.setdefault("EncodedOptionValues", "$null")
+        content.setdefault("Shuffle", "$null")
+        desktop["LastSet"] = now
+
+    touched = 0
+    if "SystemDefault" in data:
+        set_desktop(data["SystemDefault"]); touched += 1
+    for display in (data.get("Displays") or {}).values():
+        set_desktop(display); touched += 1
     for space in (data.get("Spaces") or {}).values():
         if "Default" in space:
-            overwrite_desktop(space["Default"])
+            set_desktop(space["Default"]); touched += 1
         for display in (space.get("Displays") or {}).values():
-            overwrite_desktop(display)
-    for display in (data.get("Displays") or {}).values():
-        overwrite_desktop(display)
+            set_desktop(display); touched += 1
 
     try:
         store.write_bytes(plistlib.dumps(data, fmt=plistlib.FMT_BINARY))
     except Exception as e:
-        log(f"  space sync: plist write failed: {e}")
+        log(f"  plist write failed: {e}")
         return
     subprocess.run(["killall", "WallpaperAgent"], check=False,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    log("  space sync: rewrote Index.plist and restarted WallpaperAgent")
-
-
-def set_wallpaper(path: Path) -> None:
-    """Set the wallpaper on every screen via NSWorkspace, then fan the
-    config out to every Space.
-
-    Uses JXA (JavaScript for Automation) to call
-    NSWorkspace.setDesktopImageURL:forScreen:options:error: directly —
-    the same API desktoppr uses, minus the external dependency.
-    """
-    jxa = f"""
-        ObjC.import('AppKit');
-        var ws = $.NSWorkspace.sharedWorkspace;
-        var url = $.NSURL.fileURLWithPath({path.as_posix()!r});
-        var screens = $.NSScreen.screens;
-        for (var i = 0; i < screens.count; i++) {{
-          ws.setDesktopImageURLForScreenOptionsError(
-            url, screens.objectAtIndex(i), $(), $());
-        }}
-    """
-    subprocess.run(["osascript", "-l", "JavaScript", "-e", jxa], check=True)
-    _sync_spaces()
+    log(f"  wrote Index.plist ({touched} entries) and restarted WallpaperAgent")
 
 
 def cleanup(keep: Path) -> None:
