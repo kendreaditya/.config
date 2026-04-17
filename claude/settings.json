@@ -22,10 +22,10 @@
       }
     }
   },
-  "voiceEnabled": true,
   "autoMemoryDirectory": "~/.claude/memory",
   "autoDreamEnabled": true,
   "skipDangerousModePermissionPrompt": true,
+  "voiceEnabled": true,
   "feedbackSurveyState": {
     "lastShownTime": 1754041016117
   }

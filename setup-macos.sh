@@ -50,7 +50,7 @@ sh -c 'curl -fLo "${XDG_DATA_HOME:-$HOME/.local/share}"/nvim/site/autoload/plug.
 
 # Install all casks in one call (--force handles apps already installed outside brew)
 brew install --cask --force raycast zed todoist tomatobar zoom alt-tab bruno \
-  hiddenbar blackhole-2ch ollama amethyst hammerspoon karabiner-elements \
+  hiddenbar blackhole-2ch ollama hammerspoon karabiner-elements \
   visual-studio-code google-chrome warp ghostty logseq obsidian postman \
   claude claude-code codex codex-app \
   protonvpn cloudflare-warp finetune
@@ -72,6 +72,14 @@ echo "Setting up .config Python venv..."
 /opt/homebrew/bin/python3.12 -m venv ~/.config/config-venv
 ~/.config/config-venv/bin/pip install --upgrade pip
 ~/.config/config-venv/bin/pip install -r ~/.config/requirements.txt
+
+# Run per-skill setup scripts (skills own anything beyond pip, e.g. playwright browsers)
+echo "Running per-skill setup scripts..."
+for s in ~/.config/claude/skills/*/scripts/setup.sh; do
+  [ -f "$s" ] || continue
+  echo "  → $s"
+  bash "$s"
+done
 
 # Create workspace directory
 mkdir -p ~/workspace
