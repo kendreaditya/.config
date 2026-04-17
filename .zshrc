@@ -119,3 +119,10 @@ export EDITOR=nvim
 
 # bun completions
 [ -s "/Users/kendreaditya/.bun/_bun" ] && source "/Users/kendreaditya/.bun/_bun"
+
+# Load env vars from ~/.config/.env (API tokens, etc.)
+if [[ -f "$HOME/.config/.env" ]]; then
+  set -a
+  source "$HOME/.config/.env"
+  set +a
+fi
