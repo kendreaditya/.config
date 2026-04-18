@@ -665,10 +665,74 @@ def as_table(data: Any) -> str:
     return "\n".join(out_lines)
 
 
+def _looks_like_block(x: Any) -> bool:
+    """Heuristic: dict with block-shaped keys (content + children or uuid)."""
+    if not isinstance(x, dict):
+        return False
+    if "content" in x and ("children" in x or "uuid" in x or "level" in x):
+        return True
+    # Datalog pull shape uses kebab-case.
+    if "block/content" in x and ("block/uuid" in x or "block/children" in x):
+        return True
+    return False
+
+
+def _looks_like_block_tree(data: Any) -> bool:
+    """A list where at least one element is block-shaped, or a single block."""
+    if _looks_like_block(data):
+        return True
+    if isinstance(data, list) and data and any(_looks_like_block(x) for x in data):
+        return True
+    return False
+
+
+def project_fields(data: Any, fields: list) -> Any:
+    """Walk `data`, keeping only the specified field names on every dict encountered.
+
+    Matches each requested name against both its raw form and its kebab-prefixed
+    form (e.g. `content` → keeps `content` AND `block/content`), so the same
+    --fields list works for camelCase API responses and datalog pulls.
+
+    Lists are walked element-wise; non-dict/list values pass through unchanged.
+    """
+    if not fields:
+        return data
+    # Pre-compute acceptable keys: exact names + "block/<name>" + "<name>/id" style.
+    wanted: set = set()
+    for name in fields:
+        name = name.strip()
+        if not name:
+            continue
+        wanted.add(name)
+        wanted.add(f"block/{name}")
+
+    def _walk(x):
+        if isinstance(x, dict):
+            # Only project when this dict actually carries one of the wanted
+            # keys (a "leaf" block-like dict). Otherwise it's a container
+            # (e.g. `{date: [blocks]}`, `{page_name: [blocks]}`) and we must
+            # recurse through its values without filtering its keys.
+            if any(k in wanted for k in x.keys()):
+                return {k: v for k, v in x.items() if k in wanted}
+            return {k: _walk(v) for k, v in x.items()}
+        if isinstance(x, list):
+            return [_walk(v) for v in x]
+        return x
+
+    return _walk(data)
+
+
 def as_plain(data: Any) -> str:
-    """One value per line. Dicts as `k=v`, lists flattened, scalars as str."""
+    """Human-readable plain text.
+
+    For block-shaped data (trees, block lists): indented bullet outline, content
+    only, no truncation — essentially `as_md` without the markdown framing.
+    For everything else: one value per line (scalars, k=v for dicts, list flat).
+    """
     if data is None:
         return ""
+    if _looks_like_block_tree(data):
+        return as_md(data)
     if isinstance(data, dict):
         return "\n".join(f"{k}={v}" for k, v in data.items())
     if isinstance(data, list):
