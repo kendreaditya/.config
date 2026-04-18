@@ -1,0 +1,28 @@
+{
+  "name": "TODO-plugin-id",
+  "version": "0.1.0",
+  "description": "TODO: one-line description of what the plugin does.",
+  "author": "TODO",
+  "license": "MIT",
+  "main": "dist/index.html",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TODO/TODO-plugin-id.git"
+  },
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@logseq/libs": "^0.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vite": "^5.2.0"
+  },
+  "logseq": {
+    "id": "TODO-plugin-id",
+    "title": "TODO Plugin Title",
+    "icon": "./icon.svg"
+  }
+}
