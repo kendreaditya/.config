@@ -17,13 +17,14 @@ Do NOT use this skill for:
 ## Quick start
 
 ```bash
-logseq doctor               # verify server + auth + graph
-logseq today                # today's journal (page metadata)
-logseq today --tree         # today's journal with block tree
-logseq search "keyword"     # full-text search
+logseq doctor                          # verify server + auth + graph
+logseq today                           # today's journal (page metadata)
+logseq today --tree                    # today's journal with block tree
+logseq search "keyword"                # full-text search
 logseq page "Reading List" --tree
-logseq stats                # block/page/tag/journal counts
-logseq backlinks "Page X"   # linked references
+logseq stats                           # block/page/tag/journal counts
+logseq backlinks "Page X" --with-dates # linked refs w/ journal day on each block
+logseq timeline "Page X" --text        # all text mentions, grouped by date
 ```
 
 First-time setup if `doctor` complains:
@@ -59,13 +60,14 @@ Run `logseq <command> --help` for full option details on any command.
 **Reads**
 - `today [--tree]`, `yesterday [--tree]`, `tomorrow [--tree]`
 - `journals --last N [--tree]` / `--since DATE [--until DATE]` / `--on DATE`
-- `page <name> [--tree]`
+- `page <name> [--tree] [--resolve-embeds]` — `--resolve-embeds` inlines `((uuid))` placeholders with target content (recursive, cycle-safe)
 - `pages [--filter REGEX] [--namespace NS] [--namespace-tree NS]`
-- `block <uuid> [--children]`
+- `block <uuid> [--children] [--resolve-embeds]`
 - `props <uuid>` / `prop <uuid> <key>`
-- `backlinks <page>` — linked references
-- `tag <name>` — blocks referencing a tag/page
-- `search <query> [--limit N]` — full-text (PFTS markers stripped)
+- `backlinks <page> [--with-dates] [--fields k1,k2,...]` — linked references; `--with-dates` injects `journal_day` (ISO) + `page_name`; `--fields` projects each block to only the listed keys (matches both `k` and `block/k`)
+- `tag <name> [--with-dates]` — blocks referencing a tag/page
+- `timeline <page> [--text] [--order asc|desc] [--fields k1,k2,...]` — refs grouped by journal date; `--order` controls date sort (default `desc`); `--text` = case-insensitive content match; `--fields` only applies to JSON output
+- `search <query> [--limit N] [--with-dates] [--fields k1,k2,...]` — full-text (PFTS markers stripped); `--with-dates` enriches `blocks` only (not `pages-content`); `--fields` projects result lists
 - `recent` / `favorites` / `templates`
 
 **Stats, tags, properties**
@@ -129,17 +131,29 @@ Config file: `~/.config/claude/skills/logseq/state/config.json` (chmod 600). Wri
 # Dump today's journal as markdown
 logseq today --tree --format md
 
+# Page tree as plain indented bullets (content only, no JSON)
+logseq page "Reading List" --tree --format plain
+
 # All blocks matching a search term, resolved one at a time
 logseq search "keyword" --uuids-only | xargs -n1 logseq block --children
+
+# Chronological story for a topic (catches un-indexed refs via text match)
+logseq timeline "Person X" --text
+
+# Backlinks enriched + field-projected to keep JSON small
+logseq backlinks "Person X" --with-dates --fields content,journal_day --format json
+
+# Page tree with embed blocks resolved inline (no more stray ((uuid)) placeholders)
+logseq page "Person X" --tree --resolve-embeds --format plain
+
+# Timeline in chronological (oldest-first) order
+logseq timeline "Person X" --text --order asc
 
 # Graph stats for cron
 logseq stats --format json | jq '{blocks, pages, journals}'
 
 # Pages I linked to but never opened
 logseq stats --broken-refs --format table
-
-# Dump a page tree and grep for TODOs
-logseq page "Reading List" --tree --format plain | grep TODO
 ```
 
 More in `references/recipes.md`.
@@ -149,6 +163,7 @@ More in `references/recipes.md`.
 1. **`getCurrentPage` returns null** on fresh journal mounts. The CLI doesn't hit this directly (uses today's date + `getPage` instead), but if you add a handler that needs the current page, read from the DOM title, not this endpoint.
 2. **Response keys are bimodal**: top-level keys are camelCase (`journalDay`, `createdAt`), pull-query results are kebab-case (`block/uuid`, `block/created-at`, `path-refs`). The module handles this internally via defensive readers. See `references/shapes.md`.
 3. **`search` snippets have PFTS markers** (`$pfts_2lqh>...<pfts_2lqh$`). The CLI strips them via `strip_pfts` before output.
+3a. **`search` returns two kinds of UUIDs.** `blocks[].uuid` are block UUIDs — pass to `logseq block`. `pages-content[].uuid` are **page** UUIDs — passing them to `logseq block` fails (the CLI now reports "That UUID is the page 'X', not a block" and suggests `logseq page`). Use `pages` list for page titles.
 4. **Deleting a page removes all refs to it** — Logseq's `deletePage` purges the `:block/name` entry, so `[[Deleted Page]]` references in other blocks become untracked text. The "broken refs" query can't find them anymore. Consequence: "broken ref" truly means "page referenced + pseudopage only", not "deleted page referenced".
 5. **Nested blocks created via `insertBlock` don't always populate `:block/refs`.** Top-level blocks created via `appendBlockInPage` do. Use top-level blocks for seeds/tests that need reliable backlinks.
 6. **Token auth is permissive if no tokens are configured.** If the user's Logseq server was started with no `:server/tokens` list, it accepts any bearer token. The CLI doesn't detect this.
