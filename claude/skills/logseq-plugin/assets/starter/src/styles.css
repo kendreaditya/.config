@@ -1,0 +1,2 @@
+/* Scoped CSS for this plugin. Prefix every selector with a plugin-specific
+ * wrapper class to avoid leaking into Logseq's native DOM. */
