@@ -1,0 +1,210 @@
+{
+  "graph": "logseq-test",
+  "seeded_at": "2026-04-18T07:10:22Z",
+  "pages": [
+    "Apr 11th, 2026",
+    "Apr 15th, 2026",
+    "Apr 17th, 2026",
+    "Apr 18th, 2026",
+    "Mar 19th, 2026",
+    "Meta Page",
+    "Notes",
+    "Notes/Philosophy",
+    "Notes/Philosophy/Stoicism",
+    "Notes/Systems",
+    "Orphan Page",
+    "Project Alpha",
+    "Reading List",
+    "Tag One",
+    "Tag Two"
+  ],
+  "blocks": [
+    {
+      "uuid": "69e32e5e-f651-4837-a5de-8270f7053526",
+      "page": "Apr 11th, 2026",
+      "content_preview": "Week prior entry referencing [[Tag One]]"
+    },
+    {
+      "uuid": "69e32e5e-d7e6-4a73-8410-9a88e399274a",
+      "page": "Apr 15th, 2026",
+      "content_preview": "Earlier journal entry with #simple-tag"
+    },
+    {
+      "uuid": "69e32e5e-b476-41e5-b356-4633eafb8f13",
+      "page": "Apr 17th, 2026",
+      "content_preview": "[[Reading List]] added 2 books"
+    },
+    {
+      "uuid": "69e32e5e-3339-4739-a526-54e5ded395e4",
+      "page": "Apr 17th, 2026",
+      "content_preview": "Meeting with team about [[Project Alpha]]"
+    },
+    {
+      "uuid": "69e32e5e-a6fe-4f01-bec7-817f2f4d7c17",
+      "page": "Apr 18th, 2026",
+      "content_preview": "Started the day with a walk [[Project Alpha]]"
+    },
+    {
+      "uuid": "69e32e5e-33dc-482b-b4e4-4d6735470cdc",
+      "page": "Apr 18th, 2026",
+      "content_preview": "TODO review quarterly goals"
+    },
+    {
+      "uuid": "69e32e5e-e30a-4490-8da3-a3aaf486c7a5",
+      "page": "Apr 18th, 2026",
+      "content_preview": "Random thought about #simple-tag"
+    },
+    {
+      "uuid": "69e32e5e-b3ff-4b0e-b76a-ab74c2cbe37d",
+      "page": "Mar 19th, 2026",
+      "content_preview": "Month-ago entry for journals --last 30 test"
+    },
+    {
+      "uuid": "69e32e5e-691f-4e4b-b0ae-74af47cbf9f9",
+      "page": "Meta Page",
+      "content_preview": "A page with properties."
+    },
+    {
+      "uuid": "69e32e5e-63ac-498f-83d2-1f25187f9e38",
+      "page": "Notes/Philosophy",
+      "content_preview": "Philosophy root"
+    },
+    {
+      "uuid": "69e32e5e-18d9-4219-90f1-cc5e536eb116",
+      "page": "Notes/Philosophy/Stoicism",
+      "content_preview": "Stoicism (nested under Philosophy)"
+    },
+    {
+      "uuid": "69e32e5e-33ba-4ef2-b509-3f4b3a8ae4a0",
+      "page": "Notes/Systems",
+      "content_preview": "Systems thinking root"
+    },
+    {
+      "uuid": "69e32e5e-838b-408f-8ee0-224d5a650528",
+      "page": "Orphan Page",
+      "content_preview": "This page has no inbound references."
+    },
+    {
+      "uuid": "69e32e5d-aeb4-4ab7-b901-549ee737a924",
+      "page": "Project Alpha",
+      "content_preview": "This is [[Project Alpha]]"
+    },
+    {
+      "uuid": "69e32e5d-e0ed-4bcc-8f87-c55e9c3529c1",
+      "page": "Reading List",
+      "content_preview": "Books I want to read"
+    },
+    {
+      "uuid": "69e32e5e-6a8a-45a9-819e-dd7da8221aa8",
+      "page": "Reading List",
+      "content_preview": "[[Tag One]] philosophy primer"
+    },
+    {
+      "uuid": "69e32e5e-b8b6-4064-b1b7-59788e24ee86",
+      "page": "Reading List",
+      "content_preview": "**bold annotation** for this one"
+    },
+    {
+      "uuid": "69e32e5e-e240-40cd-9a9d-337816e25f08",
+      "page": "Reading List",
+      "content_preview": "[[Tag Two]] linked here"
+    },
+    {
+      "uuid": "69e32e5e-b9a0-49a2-b2c8-b52464776143",
+      "page": "Reading List",
+      "content_preview": "#simple-tag articles"
+    },
+    {
+      "uuid": "69e32e5e-681e-43ca-9bdb-b907dcceb1bf",
+      "page": "Reading List",
+      "content_preview": "TODO read `design patterns` article"
+    },
+    {
+      "uuid": "69e32e5e-b2b4-4f5c-bddd-1ae730276688",
+      "page": "Reading List",
+      "content_preview": "has some ==highlighted== content"
+    },
+    {
+      "uuid": "69e32e5e-9a0c-4c83-849f-95e97ce54355",
+      "page": "Reading List",
+      "content_preview": "#[[Multi Word]] projects"
+    },
+    {
+      "uuid": "69e32e5e-9553-4ea4-95a6-d5751638767b",
+      "page": "Reading List",
+      "content_preview": "~~strikethrough~~ this is done"
+    },
+    {
+      "uuid": "69e32e5e-b096-4a52-ae2d-94353ba057b7",
+      "page": "Reading List",
+      "content_preview": "See [[Project Alpha]] for related work \u2014 also ref ((69e32e5e-691f-4e4b-b0ae-74af"
+    },
+    {
+      "uuid": "69e32e5e-8ec9-405a-8c8b-9ea316550ecd",
+      "page": "Reading List",
+      "content_preview": "Reference to [[Broken Target A]]"
+    },
+    {
+      "uuid": "69e32e5e-e470-4861-b59f-703c57d54438",
+      "page": "Reading List",
+      "content_preview": "Also [[Broken Target B]] somewhere"
+    },
+    {
+      "uuid": "69e32e5e-09f7-4896-b923-a37df6749a2c",
+      "page": "Reading List",
+      "content_preview": "LATER explore [external link](https://example.com)"
+    },
+    {
+      "uuid": "69e32e5e-dd23-45cc-a6d2-23d4c09d7792",
+      "page": "Reading List",
+      "content_preview": "resurfacetestmagicword exactly one block"
+    },
+    {
+      "uuid": "69e32e5e-64e4-44be-8b0b-aadd1bb465c9",
+      "page": "Reading List",
+      "content_preview": "A really long form block with lots of content to make this substantive: the quic"
+    }
+  ],
+  "expectations": {
+    "total_pages_seeded": 15,
+    "total_blocks_seeded": 29,
+    "search_magic_word": "resurfacetestmagicword",
+    "search_magic_word_expected_hits": 1,
+    "broken_ref_targets": [
+      "Broken Target A",
+      "Broken Target B"
+    ],
+    "orphan_page": "Orphan Page",
+    "namespace_root": "Notes",
+    "namespace_leaves": [
+      "Notes/Philosophy",
+      "Notes/Systems",
+      "Notes/Philosophy/Stoicism"
+    ],
+    "prop_page_name": "Meta Page",
+    "prop_keys": [
+      "type",
+      "status",
+      "rating"
+    ],
+    "prop_values": {
+      "type": "reference",
+      "status": "draft",
+      "rating": 5
+    },
+    "tags": [
+      "simple-tag",
+      "Multi Word"
+    ],
+    "todo_pages": [
+      "Reading List"
+    ],
+    "journal_days_seeded": [
+      20260418,
+      20260417,
+      20260415,
+      20260411,
+      20260319
+    ]
+  }
+}
