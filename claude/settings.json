@@ -22,6 +22,7 @@
       }
     }
   },
+  "effortLevel": "xhigh",
   "autoMemoryDirectory": "~/.claude/memory",
   "autoDreamEnabled": true,
   "skipDangerousModePermissionPrompt": true,
