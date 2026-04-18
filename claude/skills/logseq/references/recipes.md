@@ -15,6 +15,7 @@ Copy-pasteable pipelines. Assumes `logseq` is on `$PATH` and a token is set via 
 - Cron / scripting
 - Writes
 - Inspection
+- Composing with jq
 
 ## Reading today
 
@@ -181,3 +182,35 @@ logseq raw logseq.Editor.getPage --args '["X"]'     # any method directly
 logseq raw logseq.Editor.getPage --args '["X"]' --dry-run
 logseq config show                                  # session state
 ```
+
+## Composing with jq
+
+The CLI emits compact JSON by default when piped (non-TTY). No extra flag needed.
+
+```bash
+# Reshape stats to just the counts you care about
+logseq stats --format json | jq '{blocks, pages, journals}'
+
+# Extract top-level uuids from a block tree
+logseq today --tree --format json | jq '.[].uuid'
+
+# Search results: kebab-case keys (block/uuid, block/content) — jq needs quoting
+logseq search "foo" --format json | jq '.blocks[]."block/uuid"'
+logseq search "foo" --format json | jq '.blocks[] | "\(.\"block/uuid\"): \(.\"block/content\")"'
+
+# Pages filtered by journal-day range
+logseq pages --format json | jq '[.[] | select(.journalDay != null)] | sort_by(.journalDay) | reverse | .[:10]'
+
+# All block uuids referencing a specific page (chain into logseq block)
+logseq tag "Reading List" --format json | jq -r '.[][] | ."block/uuid"' | xargs -n1 logseq block --format tree
+
+# Backlinks: flatten the {page: [blocks]} dict to a uuid stream
+logseq backlinks "Project Alpha" --format json | jq -r 'to_entries[].value[].uuid'
+
+# Graph health one-liner for cron
+logseq stats --format json | jq -r '"\(.blocks) blocks, \(.pages) pages, \(.tags) tags"'
+```
+
+**Gotcha:** Logseq's response shapes are bimodal — top-level keys are camelCase (`journalDay`, `createdAt`, `originalName`), but pull-query results inside `search` / `datalog` return kebab-case (`block/uuid`, `block/content`, `has-more?`, `path-refs`). Those need quoted access in jq: `."block/uuid"`. See `shapes.md` for per-endpoint key conventions.
+
+Prefer the CLI's built-in `--uuids-only` when you just want uuids — it walks nested structures (including search results) and handles both key conventions. Reach for jq when you need to reshape, filter, or join.
