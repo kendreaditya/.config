@@ -1,6 +1,6 @@
 {
   "graph": "logseq-test",
-  "seeded_at": "2026-04-18T07:10:22Z",
+  "seeded_at": "2026-04-18T07:57:58Z",
   "pages": [
     "Apr 11th, 2026",
     "Apr 15th, 2026",
@@ -20,154 +20,169 @@
   ],
   "blocks": [
     {
-      "uuid": "69e32e5e-f651-4837-a5de-8270f7053526",
+      "uuid": "69e33986-73ae-4d26-83bf-8c2c07db6a12",
       "page": "Apr 11th, 2026",
       "content_preview": "Week prior entry referencing [[Tag One]]"
     },
     {
-      "uuid": "69e32e5e-d7e6-4a73-8410-9a88e399274a",
+      "uuid": "69e33986-3dd8-4ed7-bbc2-fe6d416461a1",
       "page": "Apr 15th, 2026",
       "content_preview": "Earlier journal entry with #simple-tag"
     },
     {
-      "uuid": "69e32e5e-b476-41e5-b356-4633eafb8f13",
+      "uuid": "69e33986-f6a2-4d6c-89ed-20b7c8037884",
       "page": "Apr 17th, 2026",
       "content_preview": "[[Reading List]] added 2 books"
     },
     {
-      "uuid": "69e32e5e-3339-4739-a526-54e5ded395e4",
+      "uuid": "69e33986-5f62-4821-afc3-df83efd43b63",
       "page": "Apr 17th, 2026",
       "content_preview": "Meeting with team about [[Project Alpha]]"
     },
     {
-      "uuid": "69e32e5e-a6fe-4f01-bec7-817f2f4d7c17",
+      "uuid": "69e33986-995d-4912-93ea-e6672668a38b",
       "page": "Apr 18th, 2026",
       "content_preview": "Started the day with a walk [[Project Alpha]]"
     },
     {
-      "uuid": "69e32e5e-33dc-482b-b4e4-4d6735470cdc",
+      "uuid": "69e33986-8fbf-4cce-9532-22ce7d14272d",
       "page": "Apr 18th, 2026",
       "content_preview": "TODO review quarterly goals"
     },
     {
-      "uuid": "69e32e5e-e30a-4490-8da3-a3aaf486c7a5",
+      "uuid": "69e33986-c8f5-4e4c-9f23-4e05ac1528ef",
       "page": "Apr 18th, 2026",
       "content_preview": "Random thought about #simple-tag"
     },
     {
-      "uuid": "69e32e5e-b3ff-4b0e-b76a-ab74c2cbe37d",
+      "uuid": "69e33986-23a7-4e06-9da3-1cbe4e0d63d3",
       "page": "Mar 19th, 2026",
       "content_preview": "Month-ago entry for journals --last 30 test"
     },
     {
-      "uuid": "69e32e5e-691f-4e4b-b0ae-74af47cbf9f9",
+      "uuid": "69e33985-f4c3-4cc7-9d0f-a99774c977dd",
       "page": "Meta Page",
       "content_preview": "A page with properties."
     },
     {
-      "uuid": "69e32e5e-63ac-498f-83d2-1f25187f9e38",
+      "uuid": "69e33986-29a9-424b-a649-2df5053d411c",
+      "page": "Notes",
+      "content_preview": "Namespace root"
+    },
+    {
+      "uuid": "69e33986-1a6b-49a0-9121-0336d01dacff",
       "page": "Notes/Philosophy",
       "content_preview": "Philosophy root"
     },
     {
-      "uuid": "69e32e5e-18d9-4219-90f1-cc5e536eb116",
+      "uuid": "69e33986-5229-42bf-af00-d68453da1124",
       "page": "Notes/Philosophy/Stoicism",
       "content_preview": "Stoicism (nested under Philosophy)"
     },
     {
-      "uuid": "69e32e5e-33ba-4ef2-b509-3f4b3a8ae4a0",
+      "uuid": "69e33986-896d-46c8-a833-e702146813a4",
       "page": "Notes/Systems",
       "content_preview": "Systems thinking root"
     },
     {
-      "uuid": "69e32e5e-838b-408f-8ee0-224d5a650528",
+      "uuid": "69e33985-dba9-4f7b-9e71-422050c0bbb0",
       "page": "Orphan Page",
       "content_preview": "This page has no inbound references."
     },
     {
-      "uuid": "69e32e5d-aeb4-4ab7-b901-549ee737a924",
+      "uuid": "69e33985-f3a5-49a5-898c-6bcf2e93b616",
       "page": "Project Alpha",
       "content_preview": "This is [[Project Alpha]]"
     },
     {
-      "uuid": "69e32e5d-e0ed-4bcc-8f87-c55e9c3529c1",
+      "uuid": "69e33985-65d7-44b7-893e-7a40c8c85adb",
       "page": "Reading List",
       "content_preview": "Books I want to read"
     },
     {
-      "uuid": "69e32e5e-6a8a-45a9-819e-dd7da8221aa8",
+      "uuid": "69e33985-d64c-4895-863f-224df7673a1c",
       "page": "Reading List",
       "content_preview": "[[Tag One]] philosophy primer"
     },
     {
-      "uuid": "69e32e5e-b8b6-4064-b1b7-59788e24ee86",
+      "uuid": "69e33985-3a28-41a9-9cd8-f3866405e44e",
       "page": "Reading List",
       "content_preview": "**bold annotation** for this one"
     },
     {
-      "uuid": "69e32e5e-e240-40cd-9a9d-337816e25f08",
+      "uuid": "69e33985-4202-4d1d-bbbd-13935b51094d",
       "page": "Reading List",
       "content_preview": "[[Tag Two]] linked here"
     },
     {
-      "uuid": "69e32e5e-b9a0-49a2-b2c8-b52464776143",
+      "uuid": "69e33985-7c01-410a-bb78-d93abbc61a07",
       "page": "Reading List",
       "content_preview": "#simple-tag articles"
     },
     {
-      "uuid": "69e32e5e-681e-43ca-9bdb-b907dcceb1bf",
+      "uuid": "69e33985-fc0e-4c36-8d0d-0f3ab47b0d5a",
       "page": "Reading List",
       "content_preview": "TODO read `design patterns` article"
     },
     {
-      "uuid": "69e32e5e-b2b4-4f5c-bddd-1ae730276688",
+      "uuid": "69e33985-66c8-416e-b570-cadf519ebcdb",
       "page": "Reading List",
       "content_preview": "has some ==highlighted== content"
     },
     {
-      "uuid": "69e32e5e-9a0c-4c83-849f-95e97ce54355",
+      "uuid": "69e33985-1dbc-4bde-a096-3ff07a8dbcfb",
       "page": "Reading List",
       "content_preview": "#[[Multi Word]] projects"
     },
     {
-      "uuid": "69e32e5e-9553-4ea4-95a6-d5751638767b",
+      "uuid": "69e33985-e705-4ee9-b329-c7221fb3b567",
       "page": "Reading List",
       "content_preview": "~~strikethrough~~ this is done"
     },
     {
-      "uuid": "69e32e5e-b096-4a52-ae2d-94353ba057b7",
+      "uuid": "69e33985-0485-4245-a59e-9e9c021c1923",
       "page": "Reading List",
-      "content_preview": "See [[Project Alpha]] for related work \u2014 also ref ((69e32e5e-691f-4e4b-b0ae-74af"
+      "content_preview": "See [[Project Alpha]] for related work \u2014 also ref ((69e33985-f4c3-4cc7-9d0f-a997"
     },
     {
-      "uuid": "69e32e5e-8ec9-405a-8c8b-9ea316550ecd",
+      "uuid": "69e33985-74cd-4e5b-9ef6-045c61ede389",
       "page": "Reading List",
       "content_preview": "Reference to [[Broken Target A]]"
     },
     {
-      "uuid": "69e32e5e-e470-4861-b59f-703c57d54438",
+      "uuid": "69e33985-e1a5-4a69-a7bd-e04cbbd6a966",
       "page": "Reading List",
       "content_preview": "Also [[Broken Target B]] somewhere"
     },
     {
-      "uuid": "69e32e5e-09f7-4896-b923-a37df6749a2c",
+      "uuid": "69e33985-fa06-4d87-a8be-ce73e7e1941c",
       "page": "Reading List",
       "content_preview": "LATER explore [external link](https://example.com)"
     },
     {
-      "uuid": "69e32e5e-dd23-45cc-a6d2-23d4c09d7792",
+      "uuid": "69e33985-d5cf-4307-a4bc-204051907367",
       "page": "Reading List",
       "content_preview": "resurfacetestmagicword exactly one block"
     },
     {
-      "uuid": "69e32e5e-64e4-44be-8b0b-aadd1bb465c9",
+      "uuid": "69e33985-6196-44dd-ad0b-3dbb67d644a6",
       "page": "Reading List",
       "content_preview": "A really long form block with lots of content to make this substantive: the quic"
+    },
+    {
+      "uuid": "69e33985-e2d9-4fe7-bc97-1a0be4bc9a74",
+      "page": "Tag One",
+      "content_preview": "This is [[Tag One]]"
+    },
+    {
+      "uuid": "69e33985-40b4-4bee-ae98-a661a6725605",
+      "page": "Tag Two",
+      "content_preview": "This is [[Tag Two]]"
     }
   ],
   "expectations": {
     "total_pages_seeded": 15,
-    "total_blocks_seeded": 29,
+    "total_blocks_seeded": 32,
     "search_magic_word": "resurfacetestmagicword",
     "search_magic_word_expected_hits": 1,
     "broken_ref_targets": [

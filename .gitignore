@@ -61,5 +61,8 @@ waveterm/
 # Skill runtime state (auth tokens, learned patterns, session data)
 claude/skills/*/state/
 
+# Logseq skill's scratch test graph — regenerable via seed.py --reset
+claude/skills/logseq/scripts/tests/logseq-test/
+
 # Environment secrets
 .env
