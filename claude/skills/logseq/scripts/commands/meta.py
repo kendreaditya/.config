@@ -8,7 +8,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import socket
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
@@ -68,10 +71,87 @@ def cmd_init(args: argparse.Namespace, session: Session) -> int:
 
 # ---------- doctor ----------
 
+def _port_open(host: str, port: int, timeout: float = 0.5) -> bool:
+    """Return True if we can TCP-connect to host:port within `timeout` seconds.
+    Cheaper than an HTTP round-trip; used to pre-check before firing an API call.
+    """
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except (OSError, socket.timeout):
+        return False
+
+
+def _spawn_logseq_desktop() -> bool:
+    """Launch the Logseq Desktop app in the background via macOS `open -a Logseq`.
+    Returns True if the spawn itself succeeded. Does NOT wait for the API to be up —
+    the caller is responsible for polling with _port_open.
+    """
+    try:
+        # `open -a Logseq` returns as soon as LaunchServices hands off; the app
+        # itself then takes a few seconds to initialize the HTTP server.
+        subprocess.run(["open", "-a", "Logseq"], check=True,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        err(f"[doctor] spawn failed: {e}")
+        return False
+
+
+def _wait_for_server(host: str, port: int, timeout_s: float = 30.0,
+                     poll_interval: float = 0.5) -> bool:
+    """Block until host:port accepts a TCP connection, up to `timeout_s`.
+    Returns True if the port opened, False if we timed out.
+    Prints a dot-per-second progress indicator to stderr.
+    """
+    deadline = time.monotonic() + timeout_s
+    dots = 0
+    while time.monotonic() < deadline:
+        if _port_open(host, port):
+            if dots:
+                err("")  # newline after progress dots
+            return True
+        # One visible dot per roughly 1s of waiting keeps the user informed.
+        if dots * poll_interval >= 1.0:
+            sys.stderr.write(".")
+            sys.stderr.flush()
+            dots = 0
+        dots += 1
+        time.sleep(poll_interval)
+    if dots:
+        err("")
+    return False
+
+
 def cmd_doctor(args: argparse.Namespace, session: Session) -> int:
-    """Diagnose the CLI setup. --fix also chmods + symlinks the entry script."""
+    """Diagnose the CLI setup. Flags:
+      --fix               chmod + symlink ~/.config/scripts/logseq
+      --wait-for-server   auto-spawn Logseq Desktop if the port's closed, then poll
+                          until the HTTP API answers (up to 30s).
+    """
     err(f"[doctor] Config: {CONFIG_FILE}")
     err(f"[doctor] {'exists' if CONFIG_FILE.exists() else 'MISSING'}")
+
+    # --wait-for-server: pre-check the port. If closed, spawn Logseq and poll.
+    # This turns the "Desktop not running" failure mode from a manual restart
+    # into a ~5-second auto-recover. Only kicks in when the flag is set.
+    if getattr(args, "wait_for_server", False):
+        if not _port_open(session.host, session.port):
+            err(f"[doctor] port {session.host}:{session.port} closed — "
+                f"spawning Logseq Desktop...")
+            if not _spawn_logseq_desktop():
+                err("[doctor] could not spawn Logseq. Is it installed?")
+                return 3
+            err(f"[doctor] waiting up to 30s for HTTP server "
+                f"(auto-start must be enabled in Logseq's server config)...")
+            if not _wait_for_server(session.host, session.port, timeout_s=30.0):
+                err(f"[doctor] timed out waiting for {session.host}:{session.port}. "
+                    f"Check that the HTTP API server is enabled and auto-start is on.")
+                return 3
+            err(f"[doctor] server reachable.")
+        else:
+            err(f"[doctor] port {session.host}:{session.port} already open — "
+                "no spawn needed.")
 
     try:
         info = call("logseq.App.getAppInfo") or {}
@@ -244,6 +324,8 @@ def register(subparsers) -> None:
     p = subparsers.add_parser("doctor", help="Diagnose + optionally --fix (symlink)")
     p.add_argument("--fix", action="store_true",
                    help="chmod + symlink ~/.config/scripts/logseq")
+    p.add_argument("--wait-for-server", action="store_true",
+                   help="If port closed, spawn Logseq Desktop and poll up to 30s")
     p.set_defaults(func=cmd_doctor)
     p = subparsers.add_parser("config-get", help="Print config (token redacted)")
     p.add_argument("key", nargs="?", help="Single key (omit for full config)")
@@ -287,5 +369,5 @@ if __name__ == "__main__":
     print("-- config-get token (redacted) --")
     cmd_config_get(_ap.Namespace(key="token"), s)
     print("-- doctor (no --fix) --")
-    cmd_doctor(_ap.Namespace(fix=False), s)
+    cmd_doctor(_ap.Namespace(fix=False, wait_for_server=False), s)
     print("All meta.py self-tests done.")

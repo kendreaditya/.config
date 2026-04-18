@@ -50,7 +50,7 @@ Run `logseq <command> --help` for full option details on any command.
 
 **Setup / meta**
 - `init` — interactive: token, host, port → state/config.json
-- `doctor` — diagnose server + auth + graph; `--fix` symlinks CLI into PATH
+- `doctor` — diagnose server + auth + graph; `--fix` symlinks CLI into PATH; `--wait-for-server` auto-spawns `open -a Logseq` if the port is closed and polls up to 30s until the API answers (requires Auto-start in Logseq's server config for the HTTP server to come up)
 - `version` — CLI + server versions
 - `graph` / `graphs` — current graph / all configured graphs
 - `use <name>` — soft-pin default graph (Logseq itself must be switched manually)
