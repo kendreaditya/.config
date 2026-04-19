@@ -42,6 +42,13 @@ brew install mas imagemagick cmake gcc ffmpeg gh wget curl python@3.12 \
   ocrmypdf tesseract graphviz fswatch nvm deno oven-sh/bun/bun ncdu himalaya \
   steipete/tap/gogcli steipete/tap/imsg assemblyai gemini-cli
 
+# wacli: brew tap is stale (pins v0.2.0, which WhatsApp rejects as "client outdated").
+# Fetch the latest prebuilt universal binary directly from GitHub releases.
+WACLI_TAG=$(curl -s https://api.github.com/repos/steipete/wacli/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+curl -sL "https://github.com/steipete/wacli/releases/download/${WACLI_TAG}/wacli-macos-universal.tar.gz" | tar -xzf - -C /tmp
+mv /tmp/wacli /opt/homebrew/bin/wacli
+chmod +x /opt/homebrew/bin/wacli
+
 # Install global npm CLIs
 npm install -g wrangler vercel pnpm typescript tailwindcss eslint yarn
 
@@ -52,7 +59,7 @@ sh -c 'curl -fLo "${XDG_DATA_HOME:-$HOME/.local/share}"/nvim/site/autoload/plug.
 brew install --cask --force raycast zed todoist tomatobar zoom alt-tab bruno \
   hiddenbar blackhole-2ch ollama hammerspoon karabiner-elements \
   visual-studio-code google-chrome warp ghostty logseq obsidian postman \
-  claude claude-code codex codex-app \
+  claude claude-code codex codex-app whatsapp \
   protonvpn cloudflare-warp finetune
 
 # Install Mac App Store apps (requires App Store sign-in)
@@ -115,6 +122,12 @@ done
 
 # Claude Code behavioral files
 mkdir -p ~/.claude ~/.config/claude/agents
+# Guard: a prior `ln -s` (without -n) into an already-symlinked dir lands *inside* it,
+# creating e.g. ~/.config/claude/agents/agents -> ~/.config/claude/agents. Clean any such loops.
+for d in skills commands agents; do
+  loop="$HOME/.config/claude/$d/$d"
+  [ -L "$loop" ] && rm "$loop"
+done
 ln -sfn ~/.config/claude/skills ~/.claude/skills
 ln -sfn ~/.config/claude/commands ~/.claude/commands
 ln -sfn ~/.config/claude/agents ~/.claude/agents
