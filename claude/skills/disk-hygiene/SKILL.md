@@ -220,6 +220,86 @@ When presenting Downloads cleanup options, use this pattern:
 - **Question 3** (multiSelect: false) - "Ongoing cleanup tool preference?"
   - Options: dust + dua-cli, Hazel automation, custom launchd script
 
+## Phase 5 - Halflife Handoff (forward-looking only)
+
+After cleanup completes, run this step ONLY IF ≥3 files were deleted this session AND `halflife` is on PATH (check `command -v halflife`). Otherwise skip.
+
+**Purpose:** what the user just chose to delete is the strongest possible signal for what they'd want auto-marked with a half-life *going forward*. Use that signal to propose a shell alias or wrap command they can install in one paste.
+
+### Hard constraints
+
+- **Never mark existing files in this phase.** Halflife scans are out of scope. This phase only produces forward-looking shell snippets.
+- **Never suggest `halflife scan`, `halflife list --expired`, or any retroactive discovery command.** Halflife is a marker, not a cleaner.
+- **Never modify `.zshrc` directly.** Print the alias/command for the user to paste.
+- If the detected pattern is weak or the set is too small to generalize, skip this phase silently.
+
+### Workflow
+
+1. Collect the paths + metadata of what was deleted this session (from Phase 3/4 actions).
+2. Look for a **strong pattern** among the deletions. Examples of strong:
+   - ≥3 files share a parent dir (e.g. all from `~/Downloads`)
+   - ≥3 files share an extension (`.dmg`, `.iso`, `.mp4`)
+   - ≥3 files are ≥90 days old
+   - ≥3 files are ≥500 MB
+3. If a strong pattern is detected, phrase as a *forward-looking* suggestion and ask whether to codify it:
+
+   > You deleted 8 .dmg files averaging 120 days old. Want future .dmg downloads to auto-expire in 14 days?
+
+   Use AskUserQuestion with yes / no / custom-TTL / explain options.
+
+4. If no strong pattern emerges, ask directly:
+
+   > What kind of files were these to you?
+   > - Installers (.dmg/.pkg/.iso)
+   > - One-off data (CSVs, parquet, model weights)
+   > - Random downloads
+   > - Media (mp4/mov/mp3)
+   > - Other / don't codify
+
+5. Based on the answer, emit ONE of these concrete suggestions to print (do NOT run):
+
+   ```bash
+   # "Installers"
+   alias hl-dmg='halflife wrap --in 14d'
+   alias hl-iso='halflife wrap --in 7d'
+   # then:  hl-dmg curl -O https://example.com/foo.dmg
+
+   # "One-off data"
+   alias hl-data='halflife wrap --in 7d'
+
+   # "Random downloads"
+   alias hl-dl='halflife wrap --in 30d'
+
+   # "Media"
+   alias hl-media='halflife wrap --in 14d'
+   ```
+
+6. Close with:
+
+   > Add the alias above to `~/.config/.zshrc`, reload your shell, and next time you know a file is temporary, prefix the command with that alias. Halflife will mark it; the daily sweep will trash it.
+
+### Example inference code
+
+```bash
+/usr/bin/env bash << 'PHASE5_EOF'
+# Given a list of deleted paths in $DELETED_PATHS, summarize:
+if [ -z "${DELETED_PATHS:-}" ]; then exit 0; fi
+count=$(echo "$DELETED_PATHS" | wc -l)
+[ "$count" -lt 3 ] && exit 0
+
+echo "=== Phase 5: Halflife recommendation ==="
+echo "Deleted $count items this session."
+echo
+echo "Extension histogram:"
+echo "$DELETED_PATHS" | awk -F. 'NF>1 {print tolower($NF)}' | sort | uniq -c | sort -rn | head -5
+echo
+echo "Parent directory histogram:"
+echo "$DELETED_PATHS" | xargs -I{} dirname {} | sort | uniq -c | sort -rn | head -5
+PHASE5_EOF
+```
+
+Then interpret the histograms via the rules in step 2.
+
 ## Disk Analysis Tools Reference
 
 ### Comparison (Benchmarked on ~632GB home directory, Apple Silicon)

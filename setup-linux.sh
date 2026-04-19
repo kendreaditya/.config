@@ -126,6 +126,12 @@ done
 
 # Claude Code behavioral files
 mkdir -p ~/.claude ~/.config/claude/agents
+# Guard: a prior `ln -s` (without -n) into an already-symlinked dir lands *inside* it,
+# creating e.g. ~/.config/claude/agents/agents -> ~/.config/claude/agents. Clean any such loops.
+for d in skills commands agents; do
+  loop="$HOME/.config/claude/$d/$d"
+  [ -L "$loop" ] && rm "$loop"
+done
 ln -sfn ~/.config/claude/skills ~/.claude/skills
 ln -sfn ~/.config/claude/commands ~/.claude/commands
 ln -sfn ~/.config/claude/agents ~/.claude/agents

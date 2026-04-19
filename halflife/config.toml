@@ -1,0 +1,26 @@
+# halflife config (v2). Reload by restarting the daemon or re-running commands.
+
+# Paths that require `sudo halflife mark ...` to override.
+# Marking within these trees without sudo is refused.
+denylist = [
+  "/System",
+  "/Library",
+  "/Applications",
+  "~/.ssh",
+  "~/.config",
+  "~/Documents",
+  "~/Pictures",
+  "~/Library/Mobile Documents",  # iCloud Drive
+]
+
+# Skip sweeping files whose mtime/atime is within this window ("0" to disable).
+grace = "24h"
+
+[mark]
+# Recursive mark or folder mark hitting more than these limits needs --yes.
+max_files_without_confirm = 20
+max_bytes_without_confirm = 104857600  # 100 MiB
+
+[logs]
+# Rotate daemon + audit logs once they exceed this size.
+max_size_bytes = 1048576  # 1 MiB
