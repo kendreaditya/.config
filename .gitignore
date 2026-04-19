@@ -64,5 +64,11 @@ claude/skills/*/state/
 # Logseq skill's scratch test graph — regenerable via seed.py --reset
 claude/skills/logseq/scripts/tests/logseq-test/
 
+# halflife / trashlog runtime state (logs, locks, state files)
+halflife/logs/
+halflife/*.lock
+trashlog/logs/
+trashlog/state.json
+
 # Environment secrets
 .env
