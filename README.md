@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="assets/config-logo.png" alt=".config" width="400" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/config-dark.svg">
+    <img src="assets/config-light.svg" alt=".config" width="400">
+  </picture>
 </p>
 
 <p align="center">Personal dotfiles and cross-platform dev environment.</p>
