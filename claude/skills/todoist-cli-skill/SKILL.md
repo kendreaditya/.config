@@ -1,7 +1,7 @@
 ---
 name: todoist-cli-skill
 version: 1.0.5
-description: Manage tasks and projects in Todoist using the Official Todoist CLI tool (https://github.com/Doist/todoist-cli). Use when user asks about tasks, to-dos, reminders, productivity, or when the todoist-official skill is explicitly requested. Supports tasks, projects, labels, sections, reminders, comments, activity logs, stats, and workspaces.
+description: Default task manager. Create, view, update, complete tasks in Todoist via `td`. Triggers: "add a task", "create a task for X", "remind me to", "follow up on", "track this deadline", "what's on my plate today", "what's due", "reschedule X", "mark X done", "what did I finish". Use proactively when the user commits to a future action (applied, submitted, promised a reply) needing a dated follow-up. Projects map to life areas (Personal Areas, Professional, Ventures, Financial, Health, Pursuit of Knowledge) — pick by domain. Every new task requires `--due`, `--priority`, `--project`, `--duration`; default p3, 30m if unspecified.
 homepage: https://github.com/leaofelipe/todoist-cli-skill
 metadata:
   clawdbot:
