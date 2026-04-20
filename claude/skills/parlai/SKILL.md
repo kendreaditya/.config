@@ -1,6 +1,6 @@
 ---
 name: parlai
-description: Search, list, fetch, and sync the user's personal AI chat history across ChatGPT, Claude.ai, Gemini, AI Studio, Perplexity, Codex (CLI + Desktop), and Claude Code via the local `parlai` CLI. Use when the user wants to find a past AI conversation ("that thing I asked ChatGPT about X", "find the Claude chat where I worked on Y"), pull the full body of a known conversation, fan out a query across all their AI tools at once, or back up their history locally. Triggers on phrases like "find my chat about", "search my AI history", "pull up the conversation about", "what did I ask ChatGPT/Claude/Gemini about", "back up my chats", "parlai".
+description: Search, list, and fetch the user's personal AI chat history across ChatGPT, Claude.ai, Gemini, AI Studio, Perplexity, Codex (CLI + Desktop), and Claude Code via the local `parlai` CLI. Stateless — every command hits the provider's web API live or reads local JSONL files directly. Supports date filtering (--since / --until). Use when the user wants to find a past AI conversation ("that thing I asked ChatGPT about X", "find the Claude chat where I worked on Y"), pull the full body of a known conversation, fan out a query across all their AI tools at once, or filter by date ("conversations from last week", "what did I ask Gemini in March"). Triggers on phrases like "find my chat about", "search my AI history", "pull up the conversation about", "what did I ask ChatGPT/Claude/Gemini about", "show me convos from a date or time period", "parlai".
 ---
 
 # parlai
@@ -14,21 +14,36 @@ Local CLI wrapping the user's personal AI chat history across 8 providers. Lives
 ## Commands
 
 ```bash
-parlai status                              # which providers are authed + counts
-parlai list <provider> [-n N]              # recent conversations (uses local DB by default)
-parlai list <provider> --remote            # hit the live API
-parlai search "<query>"                    # remote-by-default fan-out across all providers
-parlai search -p <provider> "<query>"      # one provider's native search
-parlai search "<query>" --local            # cached FTS5 (faster, may be stale)
-parlai search "<query>" --content          # also fetch full conversation bodies (caches them too)
-parlai search "<query>" --json             # JSONL output for piping
+parlai status                              # which providers are authed
+parlai list <provider> [-n N]              # recent conversations (live API or local files)
 parlai get <provider> <id> [-f md|json]    # full conversation as Markdown
-parlai sync [provider] [--full]            # pull conversations into local SQLite (--full = no cap)
-parlai stats                               # storage stats
+parlai search "<query>"                    # fan out across every authed provider
+parlai search -p <provider> "<query>"      # one provider
+parlai search "<query>" --content          # also fetch full conversation bodies (deduped)
+parlai search "<query>" --json             # JSONL output for piping to LLMs/scripts
 parlai open <provider> <id>                # open in browser
-parlai login <provider>                    # interactive cookie capture (when Chrome auto-detect fails)
+parlai login <provider>                    # interactive cookie paste (Chrome auto-detect fallback)
 parlai --verbose <cmd>                     # print warnings to stderr
 ```
+
+**Stateless.** No `sync`, no local cache, no DB. Every `list` and `search` hits the provider's web API live, or for local providers (claude-code, codex-*) reads their JSONL files directly. Trade-off: repeated queries re-hit the API each time — but no staleness, no cache invalidation, nothing to forget to sync.
+
+### Date filtering with `--since` / `--until`
+
+Every list/search/sync command accepts `--since` and `--until`. Format options:
+
+- ISO: `2026-04-19`, `2026-04` (year-month), `2026-04-19T16:30:00`
+- Relative: `7d`, `2w`, `3mo`, `1y`, `24h`, `90m`
+- Special: `today`, `yesterday`
+
+```bash
+parlai list claude --since 7d              # last week
+parlai list claude --since 14d             # walks the API's pagination back 2 weeks
+parlai search "india" --since 2026-04-01 --until 2026-04-30
+parlai search "taxes" --since 2025-04-17 --until 2025-04-21   # a year ago ± 2 days
+```
+
+For remote queries, `--since` walks the provider's pagination back (newest-first) and stops once it crosses the boundary — effectively server-side filtering even though no provider's API exposes a date parameter. `--until` is best paired with `--since` (otherwise we still walk all of history).
 
 ## Workflows
 
@@ -54,16 +69,7 @@ parlai search "<topic>" --content --json   # each line includes the messages arr
 parlai search "<topic>" -p claude -c       # human-readable, full convo bodies
 ```
 
-`--content` deduplicates by conversation, fetches each, and caches results to the local DB so subsequent `--local` searches hit them.
-
-### Bulk archive everything
-
-```bash
-parlai sync claude --full                  # pull every claude.ai conversation
-parlai sync --full                         # pull from every authed provider
-```
-
-After a `--full` sync, `parlai search "<x>" --local` becomes the fastest path and works offline.
+`--content` deduplicates hits by conversation and fetches each one's full body. Not cached — fresh every call.
 
 ## Output format
 
@@ -77,7 +83,6 @@ If `parlai status` shows ✗ for a provider, run `parlai login <provider>` for a
 
 ## Notes
 
-- Default search is **remote** (live API) — no need to sync first. `--local` opts into the cached index.
-- `--full` truly means full: ignores both watermark and `--limit` cap.
-- `~/.parlai/db.sqlite` is the local store; `~/.parlai/raw/<provider>/<id>.json` mirrors raw payloads.
+- No persistence. No DB, no cache file. Only `~/.parlai/credentials.json` (manual cookie fallback) is ever written.
 - Source repo: `~/workspace/parlai`. To rebuild after changes: `cd ~/workspace/parlai && uv sync`.
+- Local providers (`claude-code`, `codex-cli`, `codex-desktop`) search by scanning their JSONL files directly (case-insensitive substring).
