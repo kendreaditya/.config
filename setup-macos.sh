@@ -56,11 +56,29 @@ npm install -g wrangler vercel pnpm typescript tailwindcss eslint yarn
 sh -c 'curl -fLo "${XDG_DATA_HOME:-$HOME/.local/share}"/nvim/site/autoload/plug.vim --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'
 
 # Install all casks in one call (--force handles apps already installed outside brew)
-brew install --cask --force raycast zed todoist tomatobar zoom alt-tab bruno \
+# NOTE: tomatobar handled separately below — the cask is deprecated (disabled 2026-09-01)
+# because the app isn't Apple-notarized and fails Gatekeeper with
+# "cannot be verified free of malware".
+brew install --cask --force raycast zed todoist zoom alt-tab bruno \
   hiddenbar blackhole-2ch ollama hammerspoon karabiner-elements \
   visual-studio-code google-chrome warp ghostty logseq obsidian postman \
   claude claude-code codex codex-app whatsapp \
   protonvpn cloudflare-warp finetune
+
+# TomatoBar: unnotarized open-source pomodoro timer (MIT, github.com/ivoronin/TomatoBar).
+# Brew's --no-quarantine flag was removed, so install then strip the quarantine xattr
+# ourselves. Falls back to a direct GitHub download once the cask is disabled.
+if brew info --cask tomatobar &>/dev/null; then
+  brew install --cask --force tomatobar || true
+else
+  echo "tomatobar cask unavailable — fetching latest release directly..."
+  TB_TAG=$(curl -s https://api.github.com/repos/ivoronin/TomatoBar/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+  curl -sL "https://github.com/ivoronin/TomatoBar/releases/download/${TB_TAG}/TomatoBar-${TB_TAG}.zip" -o /tmp/tomatobar.zip
+  rm -rf /Applications/TomatoBar.app
+  unzip -q -o /tmp/tomatobar.zip -d /Applications/
+  rm /tmp/tomatobar.zip
+fi
+[ -d /Applications/TomatoBar.app ] && sudo xattr -dr com.apple.quarantine /Applications/TomatoBar.app
 
 # Install Mac App Store apps (requires App Store sign-in)
 mas install 1475387142  # Tailscale
