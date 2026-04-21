@@ -1,0 +1,2 @@
+.env filter=git-crypt diff=git-crypt
+claude/memory/** filter=git-crypt diff=git-crypt
