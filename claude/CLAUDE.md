@@ -32,3 +32,11 @@ System Python is PEP-668 externally-managed. Use the shared venv at `~/workspace
 - Run: `~/workspace/.venv/bin/python <script.py>`
 
 Do not use `--break-system-packages` or `--user` against system Python.
+
+## Environment Variables
+
+API keys and secrets live in `~/.config/.env` (encrypted in the repo via git-crypt, auto-sourced by `.zshrc`). A template lives in `.env.example`. If `$TODOIST_API_TOKEN` or similar looks empty in a new shell, re-source it:
+
+```bash
+source ~/.config/.env
+```

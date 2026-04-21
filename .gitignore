@@ -58,6 +58,12 @@ waveterm/
 # Packaged skill files
 *.skill
 
+# Nested third-party MCP server clone with live session cookies — do not commit
+mcp-server-amazon/
+
+# Leftover from removed gstack submodule — local working copy only
+claude/skills/gstack/
+
 # Skill runtime state (auth tokens, learned patterns, session data)
 claude/skills/*/state/
 
@@ -70,5 +76,4 @@ halflife/*.lock
 trashlog/logs/
 trashlog/state.json
 
-# Environment secrets
-.env
+# .env is committed ENCRYPTED via git-crypt (see .gitattributes)
