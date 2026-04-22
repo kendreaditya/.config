@@ -1,2 +1,3 @@
 .env filter=git-crypt diff=git-crypt
 claude/memory/** filter=git-crypt diff=git-crypt
+claude/skills/monarch-money/user_preferences.md filter=git-crypt diff=git-crypt
