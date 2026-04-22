@@ -37,11 +37,15 @@ Let `mm.py` = `~/.config/config-venv/bin/python3 ~/.config/claude/skills/monarch
 
 When the token expires, repeat steps 1–2 and re-run `mm.py doctor`.
 
+## User preferences (LOAD THIS FIRST)
+
+Before any analysis or mutation, read `user_preferences.md` — contains the user's budget structure, bucket ↔ vault ↔ tag mapping, categorization rules (IRA conversions, Meta Life@, flights, etc.), yield preferences, reporting style, and the draft-before-mutate workflow rule.
+
 ## Tagging philosophy (IMPORTANT)
 
 Tags reflect the **intent** behind a transaction, not the category or merchant. The same merchant can map to different tags depending on *why* the money was spent. `Panera Bread` can be Essential (solo "need to eat"), Relationships (with friends), or Discretionary (treat).
 
-Never auto-tag a merchant uniformly across all transactions without checking intent. For ambiguous cases, ask the user.
+Never auto-tag a merchant uniformly across all transactions without checking intent. For ambiguous cases, ask the user. See `user_preferences.md` for user-specific tag definitions (tighter than MM defaults).
 
 Run `mm.py tags` to see all tags with their intent descriptions.
 
@@ -95,9 +99,10 @@ logout                              Clear session
 |---|---|
 | `scripts/mm.py` | Main CLI (includes `doctor` self-diagnose) |
 | `scripts/_mm_common.py` | Shared auth, pagination, tag resolution, doctor logic |
-| `state/session.json` | Browser-grabbed auth token. `{"token": "..."}` |
-| `state/tag_rules.json` | Deterministic merchant→tag rules for `bulk-tag`. User-editable. |
-| `state/config.json` | Optional. e.g. `{"gmail_account": "you@example.com"}` |
+| `user_preferences.md` | **User-specific** budget buckets, tag definitions, categorization rules, yield prefs, workflow. Load this before any analysis or mutation. Encrypted via git-crypt. |
+| `state/session.json` | Browser-grabbed auth token. `{"token": "..."}`. Gitignored. |
+| `state/tag_rules.json` | Deterministic merchant→tag rules for `bulk-tag`. User-editable. Gitignored. |
+| `state/config.json` | Optional. e.g. `{"gmail_account": "you@example.com"}`. Gitignored. |
 | `references/api.md` | `monarchmoney` library method signatures |
 
 Tag suggestions are **computed live** (no cached patterns file). `untagged` pulls the trailing 6 months of history each run and suggests the most-used tag per merchant. Slightly slower but always fresh.
