@@ -10,8 +10,9 @@ Query levels.fyi compensation data, job listings, and company info from the shel
 ## Subcommands (run `levels <cmd> --help` for each)
 
 - `search-company <name>` — find company by name → get ID/slug
-- `list-companies` — all companies
-- `company-salaries <company> <job-family>` — salary distribution for a company + role family
+- `list-companies` — all companies (~61K universe)
+- `company-overview <slug>` — ticker, public/private, valuation, HQ, vesting, tags, related companies. Use `--full` for all fields.
+- `company-salaries <company> <job-family>` — salary distribution for a company + role family. Each sample includes `yearsOfExperience` so you can compute level-to-YoE mapping.
 - `jobs` — search job listings (filters: company, location, level, etc.)
 - `job-family <slug>` — details for a job family (e.g. `software-engineer`)
 - `job-families` — all job family categories
@@ -55,3 +56,4 @@ All subcommands support `--json` for machine-readable output (pipe through `jq`)
 - Response uses AES-encrypted payloads; `pycryptodome` is required (auto-installed in config venv).
 - Company slugs are normalized (spaces → hyphens, lowercase). Use `search-company` first if unsure.
 - Job family slugs: `software-engineer`, `product-manager`, `data-scientist`, etc. Run `job-families` to list.
+- `company-overview` returns `estimated_valuation` and `emp_count` from levels.fyi's stored snapshot — these can be **months to years stale** for fast-growing companies (e.g. Anthropic shows emp_count=45, Stripe valuation=$95B). For live valuations use yfinance (public) or external sources (private). The `ticker` and `company_type` fields ARE reliable for public/private classification.

@@ -1,0 +1,87 @@
+#!/usr/bin/env -S /Users/kendreaditya/workspace/.venv/bin/python
+"""yfin — small Yahoo Finance CLI for ticker info + N-year stock returns."""
+
+import argparse
+import json
+import sys
+
+import yfinance as yf
+
+
+def _out(data):
+    print(json.dumps(data, indent=2, default=str, ensure_ascii=False))
+
+
+def _curated_info(info: dict) -> dict:
+    """Subset of yfinance Ticker.info fields useful for company ranking."""
+    keys = [
+        "symbol", "shortName", "longName",
+        "sector", "industry", "sectorKey", "industryKey",
+        "marketCap", "enterpriseValue", "sharesOutstanding", "floatShares",
+        "currentPrice", "previousClose", "fiftyTwoWeekLow", "fiftyTwoWeekHigh",
+        "beta", "dividendYield", "trailingPE", "forwardPE",
+        "country", "city", "state", "fullTimeEmployees",
+        "website", "longBusinessSummary",
+    ]
+    return {k: info.get(k) for k in keys if k in info}
+
+
+def _compute_returns(ticker: str, years_list):
+    """Compute N-year stock returns for each N in years_list."""
+    period = f"{max(years_list) + 1}y"
+    hist = yf.Ticker(ticker).history(period=period, auto_adjust=True)
+    if hist.empty:
+        return {f"{y}y_return_pct": None for y in years_list}
+    end_price = float(hist["Close"].iloc[-1])
+    out = {}
+    for y in years_list:
+        days = y * 252  # ~trading days/yr
+        if len(hist) > days:
+            start_price = float(hist["Close"].iloc[-days])
+            out[f"{y}y_return_pct"] = round((end_price / start_price - 1) * 100, 2)
+            out[f"{y}y_start_price"] = round(start_price, 2)
+        else:
+            out[f"{y}y_return_pct"] = None
+    out["current_price"] = round(end_price, 2)
+    return out
+
+
+def cmd_info(args):
+    info = yf.Ticker(args.ticker).info
+    _out(info if args.full else _curated_info(info))
+
+
+def cmd_returns(args):
+    _out({"ticker": args.ticker.upper(), **_compute_returns(args.ticker, args.years)})
+
+
+def cmd_all(args):
+    info = yf.Ticker(args.ticker).info
+    out = _curated_info(info)
+    out["returns"] = _compute_returns(args.ticker, args.years)
+    _out(out)
+
+
+def main():
+    parser = argparse.ArgumentParser(prog="yfin", description="Yahoo Finance CLI")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    p = sub.add_parser("info", help="Curated ticker info (sector, industry, market cap, description)")
+    p.add_argument("ticker", help="Ticker symbol (e.g. META, GOOGL)")
+    p.add_argument("--full", action="store_true", help="Return all yfinance info fields")
+
+    p = sub.add_parser("returns", help="N-year stock returns")
+    p.add_argument("ticker")
+    p.add_argument("--years", nargs="+", type=int, default=[1, 2, 3, 4],
+                   help="Year windows to compute (default: 1 2 3 4)")
+
+    p = sub.add_parser("all", help="Curated info + returns in one call (most useful for ranking)")
+    p.add_argument("ticker")
+    p.add_argument("--years", nargs="+", type=int, default=[1, 2, 3, 4])
+
+    args = parser.parse_args()
+    {"info": cmd_info, "returns": cmd_returns, "all": cmd_all}[args.cmd](args)
+
+
+if __name__ == "__main__":
+    main()

@@ -185,6 +185,31 @@ def cmd_company_salaries(args):
     _out(result)
 
 
+def cmd_company_overview(args):
+    """Company overview: ticker, public/private, valuation, HQ, vesting, tags, related companies.
+    Corresponds to: /companies/<company>?company=<company>
+    """
+    path = f"companies/{args.company}.json?company={args.company}"
+    props = _next_data(path)
+    co = props.get("company", {}) or {}
+    if args.full:
+        _out(co)
+        return
+    # Curated subset of the most rankable fields
+    keep = [
+        "slug", "name", "aliases", "previous_slugs", "id", "parentId",
+        "ticker", "company_type", "funding_stage", "estimated_valuation",
+        "estimated_annual_revenue", "emp_count", "employee_count_range",
+        "year_founded", "industry", "tags", "domains",
+        "hq_address", "hq_city", "hq_state", "hq_state_code",
+        "hq_latitude", "hq_longitude", "country",
+        "vesting_type", "vesting_schedule", "vesting_detail", "pay_schedule",
+        "website", "twitter", "linkedin", "crunchbase",
+        "related_companies_slugs", "jobBoardSlug",
+    ]
+    _out({k: co.get(k) for k in keep if k in co})
+
+
 def cmd_benefits(args):
     """Compare benefits for a list of companies (scrapes HTML).
     Corresponds to: /benefits/?companies=Google,Meta,Microsoft
@@ -346,6 +371,11 @@ def main():
     p.add_argument("--job-family", default="software-engineer", metavar="SLUG")
     p.add_argument("--country", default="254", help="Country ID (default: 254 = US)")
 
+    # --- company-overview ---
+    p = sub.add_parser("company-overview", help="Company overview: ticker, public/private, valuation, HQ, vesting, tags (/companies/<co>)")
+    p.add_argument("company", help="Company slug (e.g. 'meta', 'stripe')")
+    p.add_argument("--full", action="store_true", help="Return all fields (default: curated subset)")
+
     # --- benefits ---
     p = sub.add_parser("benefits", help="Compare company benefits (/benefits/)")
     p.add_argument(
@@ -372,6 +402,7 @@ def main():
         "benefits": cmd_benefits,
         "leaderboard": cmd_leaderboard,
         "company-salaries": cmd_company_salaries,
+        "company-overview": cmd_company_overview,
     }
     dispatch[args.cmd](args)
 
