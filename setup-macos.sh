@@ -98,6 +98,16 @@ echo "Setting up .config Python venv..."
 ~/.config/config-venv/bin/pip install --upgrade pip
 ~/.config/config-venv/bin/pip install -r ~/.config/requirements.txt
 
+# Install gstack (Garry Tan's Claude Code skill bundle) — clones into gstack/ and
+# regenerates the top-level stub dirs (codex/, careful/, guard/, review/, etc.).
+# Requires bun, installed above via brew (oven-sh/bun/bun).
+echo "Installing gstack..."
+if [ ! -d ~/.config/claude/skills/gstack/.git ]; then
+  git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git \
+    ~/.config/claude/skills/gstack
+fi
+(cd ~/.config/claude/skills/gstack && ./setup --quiet)
+
 # Run per-skill setup scripts (skills own anything beyond pip, e.g. playwright browsers)
 echo "Running per-skill setup scripts..."
 for s in ~/.config/claude/skills/*/scripts/setup.sh; do
