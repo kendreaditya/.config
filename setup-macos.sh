@@ -181,6 +181,7 @@ bash "$MACOS_DIR/defaults.sh"
 bash "$MACOS_DIR/dock.sh"
 bash "$MACOS_DIR/finder.sh"
 bash "$MACOS_DIR/sidebar.sh"
+bash "$MACOS_DIR/power.sh"
 
 # Restart affected services
 echo "Restarting services to apply changes..."
