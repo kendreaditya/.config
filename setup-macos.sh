@@ -56,29 +56,32 @@ npm install -g wrangler vercel pnpm typescript tailwindcss eslint yarn
 sh -c 'curl -fLo "${XDG_DATA_HOME:-$HOME/.local/share}"/nvim/site/autoload/plug.vim --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'
 
 # Install all casks in one call (--force handles apps already installed outside brew)
-# NOTE: tomatobar handled separately below — the cask is deprecated (disabled 2026-09-01)
-# because the app isn't Apple-notarized and fails Gatekeeper with
-# "cannot be verified free of malware".
+# NOTE: tomatobar handled separately below — we install from a private fork
+# (kendreaditya/TomatoBar) that ships our URL scheme extensions on top of upstream.
 brew install --cask --force raycast zed todoist zoom alt-tab bruno \
   hiddenbar blackhole-2ch ollama hammerspoon karabiner-elements \
   visual-studio-code google-chrome warp ghostty logseq obsidian postman \
   claude claude-code codex codex-app whatsapp \
   protonvpn cloudflare-warp finetune
 
-# TomatoBar: unnotarized open-source pomodoro timer (MIT, github.com/ivoronin/TomatoBar).
-# Brew's --no-quarantine flag was removed, so install then strip the quarantine xattr
-# ourselves. Falls back to a direct GitHub download once the cask is disabled.
-if brew info --cask tomatobar &>/dev/null; then
-  brew install --cask --force tomatobar || true
-else
-  echo "tomatobar cask unavailable — fetching latest release directly..."
-  TB_TAG=$(curl -s https://api.github.com/repos/ivoronin/TomatoBar/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
-  curl -sL "https://github.com/ivoronin/TomatoBar/releases/download/${TB_TAG}/TomatoBar-${TB_TAG}.zip" -o /tmp/tomatobar.zip
+# TomatoBar: install from kendreaditya/TomatoBar (private fork of ivoronin/TomatoBar).
+# Adds tomatobar://start, ://stop, ://skipRest, and ?duration= overrides used by
+# ~/.config/raycast/scripts/tom.sh. Builds are ad-hoc signed and tagged 'prerelease'
+# (rolling) — the sync-upstream workflow rebases our patches weekly.
+# Requires: gh (Homebrew) authed with `repo` scope.
+if command -v gh &>/dev/null && gh auth status &>/dev/null; then
+  echo "Fetching latest TomatoBar from kendreaditya/TomatoBar..."
+  TB_TMP=$(mktemp -d)
+  gh release download prerelease --repo kendreaditya/TomatoBar \
+    --pattern 'TomatoBar-*.zip' --dir "$TB_TMP" --clobber
   rm -rf /Applications/TomatoBar.app
-  unzip -q -o /tmp/tomatobar.zip -d /Applications/
-  rm /tmp/tomatobar.zip
+  unzip -q -o "$TB_TMP"/TomatoBar-*.zip -d /Applications/
+  rm -rf "$TB_TMP"
+  sudo xattr -dr com.apple.quarantine /Applications/TomatoBar.app
+else
+  echo "WARN: gh not installed or not authed — skipping TomatoBar install."
+  echo "      Run 'brew install gh && gh auth login' then re-run this script."
 fi
-[ -d /Applications/TomatoBar.app ] && sudo xattr -dr com.apple.quarantine /Applications/TomatoBar.app
 
 # Install Mac App Store apps (requires App Store sign-in)
 mas install 1475387142  # Tailscale
