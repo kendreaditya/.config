@@ -317,10 +317,10 @@ def cmd_leaderboard(args):
             "company": company_m.group(1) if company_m else None,
             "slug": slug_m.group(1) if slug_m else None,
             "title": title_m.group(1).strip() if title_m else None,
-            "total_comp": int(total_m.group(1)) if total_m else None,
-            "base": int(base_m.group(1)) if base_m else None,
-            "stock": int(stock_m.group(1)) if stock_m else None,
-            "bonus": int(bonus_m.group(1)) if bonus_m else None,
+            "total_comp": int(float(total_m.group(1))) if total_m else None,
+            "base": int(float(base_m.group(1))) if base_m else None,
+            "stock": int(float(stock_m.group(1))) if stock_m else None,
+            "bonus": int(float(bonus_m.group(1))) if bonus_m else None,
         })
 
     _out({"url": url, "entries": entries})

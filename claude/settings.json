@@ -29,5 +29,6 @@
   "voiceEnabled": true,
   "feedbackSurveyState": {
     "lastShownTime": 1754041016117
-  }
+  },
+  "agentPushNotifEnabled": true
 }
