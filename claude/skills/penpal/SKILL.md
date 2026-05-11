@@ -61,6 +61,65 @@ The corpus uses five greeting formats. Pick based on thread state, not register:
 
 **When to use polish:** first reply, cold outreach, legal, HR, anything substantive, any long email.
 
+## Cold recruiter outbound — preferred shape
+
+Calibrated 2026-05-07 across a 7-email Nuro/Zoox campaign. Aditya's preferred cold-recruiter shape is **tighter than the 79-word recruiter median** — target 50–65 words. The shape:
+
+```
+Hi {FirstName},
+
+[Action opener — what just happened on his end.]
+[ONE credentials line combining parallel-process signal + current role.]
+
+[Recruiter close.]
+
+[Attachment line.]
+
+Best,
+Aditya
+```
+
+Worked example (cold, no prior contact):
+
+```
+Hi Vincent,
+
+Just applied to a few data platform / ML infra roles at Nuro and wanted to reach out. I'm currently interviewing at Waymo as well, and working at Meta on data platform and ML infra for ads.
+
+Would be open to a chat. What does the process look like?
+
+Resume attached.
+
+Best,
+Aditya
+```
+
+**Rules specific to this shape:**
+
+- **Don't enumerate the applied roles.** Use a generic bucket like *"a few data platform / ML infra roles"* — the recruiter can find them in the ATS. Listing 5 role IDs in the body reads like a spam form.
+- **The credentials line is one sentence with two clauses.** First clause = the urgency signal (`I'm currently interviewing at Waymo as well`), second clause = current role (`and working at Meta on data platform and ML infra for ads`). The pairing of (in-process at competitor) + (current employer at scale) is the value claim. Don't pad with metrics in the body — those are on the resume.
+- **Skip the "why I'm excited about {Company}" pitch.** Recruiters don't need the pitch — they need to know you're real, in-market, and reachable. Save the company-specific angle for the actual phone screen.
+- **Periods can replace em-dashes when the user requests it for that email.** Aditya sometimes prefers `Would be open to a chat. What does the process look like?` over the canonical em-dash version. Honor per-email; do NOT save as global voice rule unless they reinforce it across multiple emails.
+- **Subject:** `{Company} Application — Aditya Kendre`. Hardcode the company name as a literal in scripts — never compute it from a lowercase form via `sed \u&` or similar (see the "Bulk sends" section for why).
+- **Attachment line is its own paragraph.** Always `Resume attached.` (not `My resume is attached.` or `Please find my resume attached.`). One line, no period before "Best".
+
+When responding to an OOO with a backup contact named, fold the referral into the action opener:
+
+```
+Hi Colleen,
+
+Hayley's OOO note pointed me to you. Just applied to a few data platform / ML infra roles at Zoox and wanted to reach out. I'm currently interviewing at Waymo as well, and working at Meta on data platform and ML infra for ads.
+
+Would be open to a chat. What does the process look like?
+
+Resume attached.
+
+Best,
+Aditya
+```
+
+The "{Person}'s OOO note pointed me to you" sentence is the warmth marker — without it, the Colleen email reads cold. With it, it reads as a polite handoff.
+
 ## Signature openers (after the greeting)
 
 **"Just ___"** — the signature opener (27+ uses):
@@ -213,3 +272,18 @@ gog gmail send --to "recipient@example.com" --subject "Subject line" --body-file
 ```
 
 Confirm recipient and subject with user before executing.
+
+## Bulk sends — verify-one-first (mandatory)
+
+When sending to >1 recipient in a batch, **never loop all sends in one shot**. The sequence is:
+
+1. Send #1.
+2. Read it back from the sent folder: `gog gmail list "in:sent" | head -3`. Eyeball the actual delivered subject + recipient. If the body or attachment is at risk (e.g. computed paths), also fetch the message and verify those.
+3. Only after the live result looks correct, loop the remaining sends.
+
+Why: any time the subject, recipient, body, or attachment is computed from a variable rather than a literal, runtime substitution can silently break. Real example (2026-05-07): `sed 's/.*/\u&/'` to capitalize a company name produced `unuro` and `uzoox` in the live subject because BSD sed (macOS default) doesn't support the `\u` escape. 6 cold recruiter emails went out with broken subjects before the bug was caught.
+
+**Anti-patterns specifically:**
+- macOS sed has no `\u`/`\U`/`\l`/`\L`/`\E` — those are GNU extensions, silently broken on BSD. Don't compute capitalization in `sed` on macOS. Use `awk '{print toupper(substr($0,1,1)) substr($0,2)}'`, Python `.capitalize()`, or just hardcode the constant in the source data ("Nuro" not "nuro" → `\u&`).
+- Don't derive a value from a variable when the value is a fixed constant. Write the string literally.
+- `gog gmail send --dry-run` exists — use it during template development.

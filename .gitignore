@@ -121,4 +121,8 @@ halflife/*.lock
 trashlog/logs/
 trashlog/state.json
 
+# Runtime telemetry / first-use stamps from CLI tools
+mlflow/
+vercel-plugin/
+
 # .env is committed ENCRYPTED via git-crypt (see .gitattributes)
