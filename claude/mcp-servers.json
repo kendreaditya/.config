@@ -1,0 +1,19 @@
+{
+  "chrome-devtools": {
+    "type": "stdio",
+    "command": "npx",
+    "args": ["chrome-devtools-mcp@latest", "--autoConnect"],
+    "env": {}
+  },
+  "figma-mcp-go": {
+    "type": "stdio",
+    "command": "npx",
+    "args": ["-y", "@vkhanhqui/figma-mcp-go@latest"]
+  },
+  "amazon": {
+    "type": "stdio",
+    "command": "node",
+    "args": ["/Users/kendreaditya/.config/mcp-server-amazon/build/index.js"],
+    "env": {}
+  }
+}

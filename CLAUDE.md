@@ -4,60 +4,42 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Repo Is
 
-Personal dotfiles and CLI research tools for macOS. The primary value is the custom scripts in `scripts/` — CLI utilities that extract web, YouTube, and Twitter content to Markdown for LLM analysis. Secondary purpose is macOS/Linux/Windows environment setup automation.
+Personal dotfiles and Claude/Codex skill configuration for macOS. Two main concerns: (1) `claude/` — behavioral files (skills, commands, agents, settings) for Claude Code, version-controlled and symlinked into `~/.claude/`; (2) macOS/Linux/Windows environment bootstrap via `setup-macos.sh`.
 
 ## Scripts Architecture
 
-All scripts are installed to `~/.local/bin` via symlinks from `scripts/`. They share a common Python venv at `~/.config/config-venv/`.
+`~/.config/scripts/` is on `$PATH` and `setup-macos.sh` also mirrors its executables into `~/.local/bin`. Most entries are **symlinks into `claude/skills/<name>/scripts/`** so a skill's CLI is callable directly from the shell (e.g. `wcb`, `shortn`, `mm`, `logseq`, `levels`, `tiktok`, `cleansubs`). A handful are first-class scripts that live here directly: `sync-docs`, `yfin`, `bestbuy`, `url`, `zsh-profile`, `wallpaper/`, `halflife.d/`, `trashlog.d/`.
 
-### Shared Modules (imported by other scripts)
-- `scripts/_utils.py` — `ensure_config_venv()` (re-executes in venv), `ProgressLogger` (Rich progress bars), `MarkdownWriter` (buffered writes)
-- `scripts/_context.py` — `split_sentences()`, `count_tokens()`, `get_tokenizer()` (tiktoken wrappers)
-
-Every Python script calls `ensure_config_venv()` at the top to auto-switch to the venv.
-
-### Main Tools
-- **`wcb`** — Async web scraper; converts sites to LLM-optimized markdown. Uses aiohttp + BeautifulSoup + markdownify. Supports depth control, subdomain filtering, optional Playwright browser.
-- **`yt-research`** — Downloads YouTube channel/search transcripts to Markdown via yt-dlp. Supports @channel syntax and search queries.
-- **`shortn`** — Compresses markdown to a token limit using TextRank (Jaccard similarity). No LLM calls — pure algorithmic summarization.
-- **`tw-research`** — Scrapes Twitter/X user timelines to Markdown via twscrape.
-- **`url`** (bash) — Generates HTML redirect files for URLs.
+Python scripts that need third-party packages either:
+- Use a dedicated skill venv (`claude/skills/<name>/scripts/.venv`, created by the skill's `setup`), or
+- Use the shared venv at `~/.config/config-venv/` (created by `setup-macos.sh`) via a direct shebang (e.g. `sync-docs`).
 
 ## Common Commands
 
 ### Setup
 ```bash
-# macOS dev environment (Homebrew, Oh My Zsh, symlinks, system defaults)
+# macOS dev environment (Homebrew, Oh My Zsh, symlinks, system defaults, MCP sync)
 ./setup-macos.sh
 
-# Install/update Python dependencies
-source ~/.config/config-venv/bin/activate
-pip install -r requirements.txt
+# Install/update shared-venv Python dependencies
+~/.config/config-venv/bin/pip install -r requirements.txt
 ```
 
 ### Running Scripts
 ```bash
 # Scripts are on PATH after setup; run directly:
 wcb https://docs.example.com
-yt-research @channel_name
 shortn input.md -t 8000
-tw-research @username
-
-# Or invoke directly during development:
-python scripts/wcb https://docs.example.com
 ```
 
 ### Adding a New Script
-1. Create `scripts/myscript` (make executable: `chmod +x scripts/myscript`)
-2. Add `ensure_config_venv()` call at the top (Python scripts)
-3. Add symlink in `setup-macos.sh` (follow existing pattern in the symlinks section)
-4. Document in `skills.md`
+1. Create `scripts/myscript` (make executable: `chmod +x scripts/myscript`).
+2. If it needs third-party packages, either point the shebang at `~/.config/config-venv/bin/python3` or package it as a skill with its own `scripts/.venv`.
+3. `setup-macos.sh` automatically symlinks every executable in `scripts/` into `~/.local/bin/` on the next run.
 
 ## Python Venv & Dependencies
 
-The venv at `~/.config/config-venv/` is created by `setup-macos.sh`. `_utils.py::ensure_config_venv()` auto-re-invokes scripts inside it — so scripts work without manually activating the venv.
-
-Dependencies: `rich`, `tiktoken`, `yt-dlp`, `aiohttp`, `aiofiles`, `click`, `tldextract`, `beautifulsoup4`, `markdownify`, `twscrape`.
+The shared venv at `~/.config/config-venv/` is created by `setup-macos.sh`. Scripts that need it point their shebang directly at `~/.config/config-venv/bin/python3`. Dependencies live in `requirements.txt`.
 
 ## Claude Code Config
 
@@ -70,9 +52,22 @@ Dependencies: `rich`, `tiktoken`, `yt-dlp`, `aiohttp`, `aiofiles`, `click`, `tld
 | `claude/skills/` | Installed skills (60 from skillsmp marketplace) |
 | `claude/commands/` | Custom slash commands (e.g. `/gdrive-read`) |
 | `claude/agents/` | Role/persona prompts — one `.md` per agent type |
+| `claude/mcp-servers.json` | MCP server definitions (tracked source of truth) |
 | `claude/docs/` | Local Claude Code docs (generated, gitignored — run `sync-docs` to regenerate) |
 
 Symlinks: `~/.claude/{skills,commands,settings.json}` → `~/.config/claude/{skills,commands,settings.json}`
+
+`~/.claude.json` itself is **not** tracked — it mixes MCP config with mutable session state (OAuth tokens, per-project history, counters). `setup-macos.sh` re-registers servers from `mcp-servers.json` via `claude mcp add-json ... -s user` on every run.
+
+### Adding or editing an MCP server
+1. Edit `~/.config/claude/mcp-servers.json` (keyed by server name).
+2. Apply immediately without re-running the full setup:
+   ```bash
+   name=myserver   # matches key in mcp-servers.json
+   claude mcp remove "$name" -s user 2>/dev/null
+   claude mcp add-json "$name" "$(jq -c --arg n "$name" '.[$n]' ~/.config/claude/mcp-servers.json)" -s user
+   ```
+   Or just re-run the MCP sync block in `setup-macos.sh`.
 
 ```bash
 # Refresh local Claude Code documentation

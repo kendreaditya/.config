@@ -25,6 +25,7 @@ claude/*
 !claude/CLAUDE.md
 !claude/settings.json
 !claude/system-prompt.txt
+!claude/mcp-servers.json
 !claude/agents/
 !claude/commands/
 !claude/skills/
@@ -54,6 +55,8 @@ git/
 himalaya/
 iterm2/
 waveterm/
+uv/
+vercel-plugin/
 
 # Packaged skill files
 *.skill
