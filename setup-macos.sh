@@ -38,7 +38,7 @@ export HOMEBREW_NO_AUTO_UPDATE=1
 brew tap steipete/tap
 brew tap assemblyai/assemblyai
 brew install mas imagemagick cmake gcc ffmpeg gh wget curl python@3.12 \
-  fzf neovim yt-dlp yq tmux atuin vim fastfetch node git zsh ripgrep tree rclone \
+  fzf neovim yt-dlp yq jq tmux atuin vim fastfetch node git zsh ripgrep tree rclone \
   ocrmypdf tesseract graphviz fswatch nvm deno oven-sh/bun/bun ncdu himalaya \
   steipete/tap/gogcli steipete/tap/imsg assemblyai gemini-cli
 
@@ -169,6 +169,18 @@ ln -sfn ~/.config/claude/CLAUDE.md ~/.claude/CLAUDE.md
 # Expose Claude skills as a subdirectory so Codex's built-ins (.system, codex-primary-runtime) are preserved.
 mkdir -p ~/.codex/skills
 ln -sfn ~/.config/claude/skills ~/.codex/skills/user
+
+# Claude Code MCP servers — source of truth is ~/.config/claude/mcp-servers.json.
+# ~/.claude.json holds mutable session state (OAuth, counters, project history) so we
+# don't track it; instead, register each server at user scope via the CLI.
+if command -v claude &>/dev/null && [ -f ~/.config/claude/mcp-servers.json ]; then
+  echo "Syncing Claude Code MCP servers from mcp-servers.json..."
+  jq -r 'keys[]' ~/.config/claude/mcp-servers.json | while read -r name; do
+    cfg=$(jq -c --arg n "$name" '.[$n]' ~/.config/claude/mcp-servers.json)
+    claude mcp remove "$name" -s user 2>/dev/null || true
+    claude mcp add-json "$name" "$cfg" -s user >/dev/null && echo "  ✓ $name"
+  done
+fi
 
 # Download Claude Code docs locally (scripts symlinked above)
 ~/.local/bin/sync-docs || echo "Warning: sync-docs failed (may need 'requests' — install manually)"
