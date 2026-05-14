@@ -17,13 +17,15 @@ Draft email in Aditya's voice. Output the draft; do not send.
 
 ## Step 1 — Register selection (load-bearing)
 
-| Register | Who | Median words | Greeting | Signoff | Key markers |
+| Register | Who | Median words | Greeting | Signoff (first contact) | Key markers |
 |---|---|---|---|---|---|
 | **Legal** | attorneys, law firms | ~110 | `Hi Name,` own line | `Thank you,\nAditya Kendre\nkendreaditya@gmail.com` | numbered attachment lists, no `!`, no emoji, `Please find attached:` |
-| **Recruiter** | recruiters, talent, cold tech outbound | ~79 | `Hi Name,` own line | `Best,\nAditya` | `Sorry for the {slow/late/delayed/long} reply!` opener, specific compliment + em-dash pivot to `what does the process look like?` |
+| **Recruiter** | recruiters, talent, cold tech outbound | ~79 | `Hi Name,` own line | `Best,\nAditya` **or** `Thanks,\nAditya` (both valid) | `Sorry for the {slow/late/delayed/long} reply!` opener, specific compliment + em-dash pivot to `what does the process look like?` |
 | **Tech company / peer engineer** | engineers, PMs, founders | ~75 | `Hi Name,` own line (or `Hey Name,`) | `Best,\nAditya` | blunt, pre-emptively answers location/visa/scheduling, `Yep`-level casual allowed |
-| **Personal** | friends, family, community members | ~103 | `Hey Name,` | `Thanks!\nAditya` or bare `Aditya` | exclamation points, narrative lead-in, emoji OK (rare), no last name |
-| **HR / Meta / service / form** | former-employer HR, insurance, apartment, IT | ~56 | `Hi Name,` or bare `Hi,` | `Thank you,\nAditya Kendre\n[employee ID or phone]` | bureaucratic formality, bulleted asks, typos left uncorrected, no contractions |
+| **Personal** | friends, family, community members | ~103 | `Hi {Name},` **or** `Hey {Name},` — both equally valid; do NOT default to `Hey` | `Thanks!\nAditya` or bare `Aditya` | exclamation points, narrative lead-in, emoji OK (rare), no last name |
+| **HR / Meta / service / form** | former-employer HR, insurance, apartment, IT | ~56 | `Hi Name,` or bare `Hi,` (when recipient is a generic team/bot) | `Thank you,\nAditya Kendre\n[employee ID or phone]` | bureaucratic formality, bulleted asks, typos left uncorrected, no contractions |
+
+**Signoff degrades as thread depth increases.** First contact = full signoff block per the table. Reply 2–3 = shorter (`Best, Aditya` even for legal). Mid-thread (4+ exchanges) = bare `Aditya` or no signoff at all. Calibration from corpus: legal mid-thread GT signs `Aditya`, not the full block. Recruiter quick-ack GT often has no signoff at all. Don't slap the formal block on a one-line ack.
 
 If the user doesn't specify, infer from the recipient's email domain + any thread context provided.
 
@@ -35,7 +37,7 @@ The corpus uses five greeting formats. Pick based on thread state, not register:
 - **Format B** — `Hi Name, [body starts same line]` (inline). **20% of corpus.** Use for casual follow-ups, bumps, quick scheduling replies when rapport already exists.
 - **Format C** — `Hi Name, [single question]?` (inline, whole email is one question). Subset of B, use when the email has no content other than the question.
 - **Format D** — `Hare Krishna Prabhu,` or similar community greeting. Only for that specific devotional context.
-- **Format E** — no greeting at all. **17% of corpus.** Use for tight mid-thread replies (<30 words), sending bare links/images, or logistics ack like `Works for me, sounds good. My number is 717-622-1281`.
+- **Format E** — no greeting at all. **17% of corpus.** Use for tight mid-thread replies (<30 words), sending bare links/images, or logistics ack like `Works for me, sounds good. My number is 717-622-1281`. **Format E implies no signoff too** — if you skip the greeting, skip `Best, Aditya`. Don't add terminal periods on fragment answers (`Less than 5k` not `Less than 5k.`). More examples from corpus: `but its 0.01$ per min` (5w, personal), `Less than 5k` (3w, hr), `Sounds good, thank you.` (4w, recruiter), `That works, thank you!` (4w, recruiter), `Hi, thank you for the update.` (Format E with bare `Hi,` — used for impersonal HR/ticket recipients).
 
 ## Core voice rules (apply across all registers)
 
@@ -51,15 +53,137 @@ The corpus uses five greeting formats. Pick based on thread state, not register:
 
 21% of corpus is "casual register" — the voice shifts for quick mid-thread replies and bumps. **Signals of casual register:**
 - Lowercase `i` as pronoun
-- Contractions without apostrophes: `Im`, `Ill`, `dont`
+- Contractions without apostrophes: `Im`, `Ill`, `dont`, `Thats`, `didnt'`
+- Dropped pronouns: `am definitely interested!` (no "I")
+- Simple `-` hyphen instead of `—` em-dash (about half of casual GT uses `-`, not em-dash)
 - Lowercase day names: `thursday`, `monday`
 - Uncorrected typos (`liknedin`, `disucssing`, `recenlty`)
+- Vague quantifiers: `3ish weeks`, `pretty flexible`, `pretty regularly`
 - Sentence fragments, dropped articles (`look interesting any JD's to send my way?`)
 - Run-on greeting (Format B) with lowercase continuation
+- `thank you so much` (warm softener, distinct from clipped `Thanks`)
+
+**Anti-polishing rule (load-bearing).** When the user's prior message in this thread already used casual register, DON'T polish your draft. Specifically, do NOT:
+- Add apostrophes to `Im`/`Thats`/`dont`
+- Replace `-` with `—`
+- Capitalize lowercase `i`
+- Convert `am definitely interested!` to `I'm definitely interested.`
+- Replace `3ish weeks` with `3.5 weeks` or `4 weeks`
+- Replace `thank you so much` with `Thanks`
 
 **When to use casual register:** follow-up/bump on an existing thread, scheduling reply, note to someone you already have rapport with, personal/family/community.
 
 **When to use polish:** first reply, cold outreach, legal, HR, anything substantive, any long email.
+
+## Echo-suppression (load-bearing)
+
+Do NOT paraphrase back what the recipient just said. Trust them to remember their own email.
+
+- If they listed 5 items, your reply commits to a subset — don't restate the list.
+- If they confirmed an interview time + sent NDA + sent Zoom link, your reply doesn't say "Got it on the NDA, I'll sign and test the Zoom link" — that's noise. Just answer the substantive question.
+- If they noted "48-hour turnaround isn't always possible", don't write back "I understand the 48-hour window."
+- If they offered video resources, don't write back "I'll work through them" — go quiet on it.
+
+**Anti-pattern in casual / mid-thread**: opening with `Thanks for the breakdown — display/educational is exactly what I'm after, so that works perfectly` (re-states recipient's framing). GOOD: `Thanks for the detailed breakdown! The extra $25 works.` — commit to the answer, skip the re-statement.
+
+Corpus calibration: when GT replies to an email with 5 paragraphs of context, GT's reply is typically the answer to the 1 question and nothing else. Drafts that "acknowledge" the context items add 20–40% length over GT.
+
+## Forward-thread bump
+
+When a third party (mutual connection) has introduced you in a thread and the recipient has not yet responded, the bump is **minimal**. The recipient has all the context they need from the intro email; do NOT re-explain yourself or restate the ask.
+
+Canonical forms:
+- `Hi {Name}, just wanted to follow up :)`
+- `Hi {Name}, circling back on this :)`
+- `Hey {Name}, bumping this :)`
+
+These are 6–10 words total. No substantive ask, no re-intro of who you are, no "would love to connect — happy to swing by an event or grab coffee". The intro email already said all of that. Your bump is just a social ping that the thread is still alive.
+
+ANTI-PATTERN: Adding a re-intro + concrete ask + flexibility statement when the third-party intro already covered all of that. If the bump is over 12 words, you're over-writing it.
+
+## Reconnect shape — NOT cold
+
+Reconnecting with a known contact after >6 months silence is its own pattern, distinct from cold-recruiter outbound. **Do not pull cold-recruiter elements into reconnects.**
+
+Don't use:
+- `Resume attached.`
+- `What does the process look like?`
+- `Sorry for the long silence!` (corpus does NOT use this as a reconnect opener)
+- A credentials line in the cold-recruiter "interview at competitor + current role" shape
+- ANY resume-related offer: `happy to send a resume over if useful`, `Resume attached if helpful`, `let me know if you want my resume` — these are all cold-recruiter residue. The reconnect is purely social bridge.
+
+Use this shape (~60–70 words):
+
+```
+Hi {Name},
+
+Not sure if you remember but I reached out back in {year} when {context — e.g. "I was graduating from Penn State"}. Since then I've been at {current role — single sentence}. Saw the {Role title} role is open and it looks like a great fit. Would love to reconnect if you're still on the recruiting team.
+
+Best,
+Aditya
+```
+
+Worked example (2026 reconnect with 2023 contact):
+
+```
+Hi Molly,
+
+Not sure if you remember but I reached out back in 2023 when I was graduating from Penn State. Since then I've been at Meta working on ML training pipelines and ads ranking infrastructure. Saw the Software Engineer, Machine Learning Infrastructure role is open and it looks like a great fit. Would love to reconnect if you're still on the recruiting team.
+
+Best,
+Aditya
+```
+
+**Why this matters:** the reconnect is *warm* — you have a prior thread. Cold-recruiter padding (Resume attached, what's the process, credentials line) reads as forgetting the relationship. GT keeps it conversational.
+
+## Anti-hallucination clause
+
+Don't introduce future commitments, dates, locations, or actions not present in the source thread.
+
+- ✗ `ill remind you in april` (when April was never mentioned by either party)
+- ✗ `I'll work through the playlist tonight` (when no such plan was committed)
+- ✗ `MPK 14` as a return location (when GT said only "Mar 25th")
+- ✗ Promising to follow up at a specific later time the source didn't propose
+
+If the source thread didn't establish a future commitment, your reply doesn't make one up.
+
+## Single-quantity answer rule
+
+When the question is yes/no, a quantity, or a single-value answer, return THAT VALUE ALONE. Don't add greeting framing, don't add follow-up questions on top.
+
+Worked examples:
+- "What's your budget?" → `Less than 5k` (not `Hi Nikos, looking at less than 5k for now - whats the discount look like at that volume?`)
+- "Does Friday work?" → `Friday works, thanks!` or `That works, thank you!`
+- "How long ago did you return it?" → `Hi, thank you for the update. If I remember correctly, I returned it on Mar 25th - so around 3ish weeks ago.`
+- "Are you free Tue 5/19 at 1pm PT?" → `1 pm PT on Tue 5/19 works great for me - looking forward to chatting!`
+
+The temptation is to "add value" by asking the next logical question. Don't. Answer first; let the recipient drive the next exchange.
+
+## Mid-thread greeting omission
+
+In a mid-thread reply where you're 2+ exchanges deep with the same person, **skip the greeting entirely**. Format E (no greeting) is the default for in-flight conversations.
+
+- ✓ `Got it, that clears it up - thank you!\n\nYes please switch both Annual visits to PA...` (no `Hi Lauren,`)
+- ✓ `I see, this makes more sense - thank you for the clarification!`
+- ✓ `No worries on the delay. To answer your questions:`
+- ✗ Re-greeting `Hi Lauren,` every reply in a 4-message thread reads as if you forgot you'd already met.
+
+Greetings belong on: first contact, first reply after >2 weeks silence, replies that significantly change topic. Otherwise, skip.
+
+## Commit to specifics
+
+When the email requires a decision (ordering, scheduling, choosing materials, choosing a time), commit to exact values. Don't defer with `happy to pick whichever you'd recommend` or `any [X] near [Y] works`.
+
+- ✗ "For the arrowhead, I'll pick one from your Etsy and send the link over"
+- ✓ "For the arrowhead, I'd love the Black Obsidian Point from your Etsy ($15). That brings the total to $40 before shipping."
+
+- ✗ "Any Quest location near Harrisburg, PA works"
+- ✓ "Quest Diagnostics - Mechanicsburg (5519 Carlisle Pike, Mechanicsburg, PA 17050)"
+
+- ✗ "between 9am and 6pm PST works, though I'd prefer afternoon"
+- ✓ "between 9am PST and 6pm PST works for me. Though, I prefer times somewhere between 4pm PST to 6pm PST"
+
+The user IS the decider. Act decisive — pick the specific item, name the specific location, commit to the precise time window with both ends.
 
 ## Cold recruiter outbound — preferred shape
 
@@ -166,7 +290,9 @@ The "{Person}'s OOO note pointed me to you" sentence is the warmth marker — wi
 **Stating a red line:**
 - `[Preserving the current offer] is my top priority — that's the outcome I most want to avoid.`
 
-**Never** use `unfortunately`, `regrettably`, `I'm afraid`, or `I'd rather/prefer`. These do not appear in the user's voice. `Honestly` and `actually` soften pushback instead.
+**Avoid by default**: `regrettably`, `I'm afraid`, `I'd rather/prefer`. These do not appear in the user's voice.
+
+`Unfortunately` is rare (~1% of corpus) but DOES appear — only as a soft NO opener for scheduling/availability declines: `Unfortunately, I don't think im free then - I'm free most weekday mornings...`. Acceptable in that narrow context only. `Honestly` and `actually` soften pushback elsewhere.
 
 ## Scheduling flow
 
@@ -241,7 +367,7 @@ Close with `Let me know if you need anything else or what the next steps are.` a
 
 ## Anti-patterns
 
-- Em-dash typed as `--` or `-` (use real `—`)
+- Em-dash typed as `--` (use real `—` in polish register; simple `-` is fine in casual)
 - Signing legal emails with `Best,\nAditya` (needs full name + email)
 - Signing personal emails with `Best,\nAditya Kendre\nkendreaditya@gmail.com` (too formal)
 - Applying polish register (apostrophes, full sentences) to a casual mid-thread bump
@@ -253,6 +379,13 @@ Close with `Let me know if you need anything else or what the next steps are.` a
 - Timezone missing on a scheduling offer
 - Sentences over 25 words outside structured summaries
 - Writing 200+ words when 40 will do
+- Echoing back content from the incoming email (NDA reminders, schedule confirmations, "I'll work through the resources you sent")
+- Adding `Best, Aditya` signoff to a Format E reply
+- Adding terminal period to fragment Format E answers (`Less than 5k.` ← wrong; `Less than 5k` ← correct)
+- Defaulting to `Hey` for all personal greetings (Hi is just as common)
+- Replacing distinctive softeners (`thank you so much`, `works great for me`, `3ish weeks`) with clipped variants
+- Pulling cold-recruiter shape into a warm reconnect (Resume attached / process look like / Sorry for the long silence)
+- Polishing casual register (adding apostrophes to `Im`/`Thats`, em-dashing simple hyphens, capitalizing lowercase `i`)
 
 ## References
 
