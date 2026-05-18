@@ -244,7 +244,7 @@ echo "  backup:  $BACKUP"
 echo
 
 # ── Apply both patches via Python (handles binary safely + idempotency) ──────
-~/workspace/.venv/bin/python3 - "$BINARY" "$BACKUP" <<'PY'
+/usr/bin/env python3 - "$BINARY" "$BACKUP" <<'PY'
 import os, sys, shutil
 binary_path, backup_path = sys.argv[1], sys.argv[2]
 
