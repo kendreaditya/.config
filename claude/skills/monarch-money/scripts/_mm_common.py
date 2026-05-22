@@ -53,6 +53,47 @@ TAG_ALIASES = {
 }
 
 
+def _extract_csrf(cookie_str: str) -> str:
+    """Pull csrftoken value out of a `Cookie:` header string."""
+    if not cookie_str:
+        return ""
+    for part in cookie_str.split(";"):
+        k, _, v = part.strip().partition("=")
+        if k.lower() == "csrftoken":
+            return v
+    return ""
+
+
+def parse_curl_to_session(curl_text: str) -> dict:
+    """Parse a `curl 'https://api.monarch.com/...'` (Chrome 'Copy as cURL') and
+    return a session dict ready to write to session.json."""
+    import re
+    out = {}
+    # cookie: header
+    m = re.search(r"-H ['\"]cookie: ([^'\"]+)['\"]", curl_text, re.I)
+    if m:
+        out["cookie"] = m.group(1)
+        csrf = _extract_csrf(out["cookie"])
+        if csrf:
+            out["csrftoken"] = csrf
+    # explicit -b 'cookies'
+    m = re.search(r"-b ['\"]([^'\"]+)['\"]", curl_text)
+    if m and "cookie" not in out:
+        out["cookie"] = m.group(1)
+        csrf = _extract_csrf(out["cookie"])
+        if csrf:
+            out["csrftoken"] = csrf
+    # device-uuid
+    m = re.search(r"-H ['\"]device-uuid: ([0-9a-f-]+)['\"]", curl_text, re.I)
+    if m:
+        out["device_uuid"] = m.group(1)
+    # x-csrftoken (override the cookie-extracted one if present)
+    m = re.search(r"-H ['\"]x-csrftoken: ([^'\"]+)['\"]", curl_text, re.I)
+    if m:
+        out["csrftoken"] = m.group(1)
+    return out
+
+
 def reexec_in_venv():
     if sys.executable != VENV_PYTHON and os.path.exists(VENV_PYTHON):
         os.execv(VENV_PYTHON, [VENV_PYTHON] + sys.argv)
@@ -68,13 +109,35 @@ async def get_client():
             raw = f.read().strip()
         try:
             data = json.loads(raw)
+        except json.JSONDecodeError:
+            data = None
+        if isinstance(data, dict):
+            # New auth (post-2026): cookie + csrftoken (HttpOnly sessionid).
+            # session.json shape:
+            #   {"cookie": "sessionid=...; csrftoken=...", "csrftoken": "...",
+            #    "device_uuid": "..."}  (csrftoken + device_uuid optional but recommended)
+            cookie = data.get("cookie") or data.get("cookies")
+            if cookie:
+                csrf = data.get("csrftoken") or _extract_csrf(cookie)
+                device = data.get("device_uuid") or data.get("deviceUuid")
+                # Strip any default Token auth — Monarch no longer accepts it
+                mm._headers.pop("Authorization", None)
+                mm._headers["Cookie"] = cookie
+                if csrf:
+                    mm._headers["X-CSRFToken"] = csrf
+                if device:
+                    mm._headers["device-uuid"] = device
+                mm._headers.setdefault("client-platform", "web")
+                mm._headers.setdefault("monarch-client", "monarch-core-web-app-graphql")
+                mm._headers.setdefault("origin", "https://app.monarch.com")
+                mm._headers.setdefault("referer", "https://app.monarch.com/")
+                return mm
+            # Legacy auth: Authorization: Token XXXXX (pre-2026)
             token = data.get("token") or data.get("authToken")
             if token:
                 mm.set_token(token)
                 mm._headers["Authorization"] = f"Token {token}"
                 return mm
-        except json.JSONDecodeError:
-            pass
         mm.load_session(SESSION_FILE)
         return mm
 
@@ -276,29 +339,61 @@ async def run_doctor(fix=False):
     else:
         print(f"✅ venv: {VENV_PYTHON}")
 
-    # 2. monarchmoney installed + version
+    # 2. monarch library installed + which package
+    #    Prefer the community fork (monarchmoneycommunity) — it has ongoing fixes.
+    #    Both ship the `monarchmoney` module, so import path is identical.
+    pkg_dist = None
     try:
-        import monarchmoney
-        ver = getattr(monarchmoney, "__version__", "unknown")
-        print(f"✅ monarchmoney installed (version {ver})")
-    except ImportError:
-        def _install_mm():
-            _pip_install(["monarchmoney==0.1.15"])
-        issues.append(("fixable", "monarchmoney not installed", _install_mm))
+        try:
+            from importlib.metadata import distribution
+        except ImportError:
+            from importlib_metadata import distribution
+        for name in ("monarchmoneycommunity", "monarchmoney"):
+            try:
+                d = distribution(name)
+                pkg_dist = (name, d.version)
+                break
+            except Exception:
+                continue
+    except Exception:
+        pass
 
-    # 3. gql pinned to <4
+    if pkg_dist is None:
+        def _install_mm():
+            _pip_install(["monarchmoneycommunity"])
+        issues.append(("fixable", "monarch library not installed", _install_mm))
+    else:
+        pkg_name, pkg_ver = pkg_dist
+        print(f"✅ {pkg_name} installed (version {pkg_ver})")
+        if pkg_name == "monarchmoney":
+            def _switch_to_community():
+                _pip_install(["--upgrade", "--force-reinstall", "monarchmoneycommunity"])
+            issues.append(("fixable",
+                           "Using legacy monarchmoney — community fork (monarchmoneycommunity) is actively maintained and fixes get_budgets",
+                           _switch_to_community))
+
+    # 3. gql version — community fork needs >=4; legacy needs <4
+    on_community = pkg_dist is not None and pkg_dist[0] == "monarchmoneycommunity"
     try:
         import gql
         ver = gql.__version__
-        if ver.startswith("4"):
-            def _pin_gql():
-                _pip_install(["gql>=3.5,<4"])
-            issues.append(("fixable", f"gql {ver} is incompatible (need <4)", _pin_gql))
+        if on_community:
+            if ver.startswith(("0.", "1.", "2.", "3.")):
+                def _bump_gql():
+                    _pip_install(["gql>=4,<5"])
+                issues.append(("fixable", f"gql {ver} too old for monarchmoneycommunity (need >=4)", _bump_gql))
+            else:
+                print(f"✅ gql {ver} (compatible with community fork)")
         else:
-            print(f"✅ gql {ver} (compatible)")
+            if ver.startswith("4"):
+                def _pin_gql():
+                    _pip_install(["gql>=3.5,<4"])
+                issues.append(("fixable", f"gql {ver} is incompatible with legacy monarchmoney (need <4)", _pin_gql))
+            else:
+                print(f"✅ gql {ver} (compatible)")
     except ImportError:
         def _install_gql():
-            _pip_install(["gql>=3.5,<4"])
+            _pip_install(["gql>=4,<5"] if on_community else ["gql>=3.5,<4"])
         issues.append(("fixable", "gql not installed", _install_gql))
 
     # 4. BASE_URL patch
@@ -318,16 +413,20 @@ async def run_doctor(fix=False):
     # 5. Session file
     if not os.path.exists(SESSION_FILE):
         issues.append(("manual",
-                       f"No session at {SESSION_FILE}. Grab browser token (see SKILL.md) and save as JSON.",
+                       f"No session at {SESSION_FILE}. Grab browser session (see SKILL.md) and save as JSON.",
                        None))
     else:
         try:
             with open(SESSION_FILE) as f:
                 data = json.load(f)
-            if not (data.get("token") or data.get("authToken")):
-                issues.append(("manual", "session.json exists but has no token field", None))
+            has_token = bool(data.get("token") or data.get("authToken"))
+            has_cookie = bool(data.get("cookie") or data.get("cookies"))
+            if has_cookie:
+                print(f"✅ Session file present (cookie auth)")
+            elif has_token:
+                print(f"✅ Session file present (legacy token auth — may be rejected by current API)")
             else:
-                print(f"✅ Session file present")
+                issues.append(("manual", "session.json exists but has no cookie/token field", None))
         except json.JSONDecodeError:
             issues.append(("manual", "session.json is not valid JSON", None))
 

@@ -429,15 +429,58 @@ async def main():
             print("No session to clear.")
         return
 
+    if cmd == "set-session":
+        # Accept cURL pasted on stdin or in argv after the command.
+        # Parses 'Copy as cURL' from Chrome DevTools and saves cookies + csrftoken.
+        if len(args) > 1:
+            curl_text = " ".join(args[1:])
+        else:
+            print("Paste your `Copy as cURL` from DevTools (Ctrl-D when done):", file=sys.stderr)
+            curl_text = sys.stdin.read()
+        from _mm_common import parse_curl_to_session
+        session_data = parse_curl_to_session(curl_text)
+        if not session_data.get("cookie"):
+            print("ERROR: no `cookie:` header found in cURL. Did you copy as cURL (bash) from Chrome?", file=sys.stderr)
+            sys.exit(2)
+        os.makedirs(os.path.dirname(SESSION_FILE), exist_ok=True)
+        with open(SESSION_FILE, "w") as f:
+            json.dump(session_data, f, indent=2)
+        print(f"Wrote {SESSION_FILE}:")
+        print(f"  cookie:     {session_data['cookie'][:80]}... ({len(session_data['cookie'])} chars)")
+        print(f"  csrftoken:  {session_data.get('csrftoken','(none)')}")
+        print(f"  device_uuid: {session_data.get('device_uuid','(none)')}")
+        print()
+        print("Test: `mm.py doctor`")
+        return
+
     mm = await get_client()
     now = datetime.date.today()
 
     if cmd == "accounts":
         out(await mm.get_accounts())
     elif cmd == "holdings":
-        out(await mm.get_account_holdings())
+        accts = (await mm.get_accounts()).get("accounts", [])
+        brokerage = [a for a in accts if (a.get("type") or {}).get("name") in ("brokerage", "retirement", "investment") or (a.get("subtype") or {}).get("name") in ("brokerage", "ira", "roth", "401k")]
+        results = {}
+        for a in brokerage:
+            try:
+                results[a["displayName"]] = await mm.get_account_holdings(int(a["id"]))
+            except Exception as e:
+                results[a["displayName"]] = {"error": str(e)}
+        out(results)
     elif cmd == "account-history":
-        out(await mm.get_account_history())
+        accts = (await mm.get_accounts()).get("accounts", [])
+        if len(args) > 1:
+            targets = [a for a in accts if str(a["id"]) == args[1] or a["displayName"].lower().startswith(args[1].lower())]
+        else:
+            targets = accts
+        results = {}
+        for a in targets:
+            try:
+                results[a["displayName"]] = await mm.get_account_history(int(a["id"]))
+            except Exception as e:
+                results[a["displayName"]] = {"error": str(e)}
+        out(results)
     elif cmd == "transactions":
         await cmd_transactions(mm, args[1:])
     elif cmd == "transaction":
@@ -454,7 +497,8 @@ async def main():
     elif cmd == "budgets":
         year = int(args[1]) if len(args) > 1 else now.year
         month = int(args[2]) if len(args) > 2 else now.month
-        out(await mm.get_budgets(start_date=f"{year}-{month:02d}-01"))
+        start, end = month_bounds(year, month)
+        out(await mm.get_budgets(start_date=start, end_date=end))
     elif cmd == "cashflow":
         kwargs = {}
         if len(args) > 1:
