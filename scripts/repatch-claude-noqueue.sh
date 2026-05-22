@@ -243,81 +243,147 @@ echo "  binary:  $BINARY"
 echo "  backup:  $BACKUP"
 echo
 
-# ── Apply both patches via Python (handles binary safely + idempotency) ──────
+# ── Apply patches via Python (auto-locates byte sequences on every run) ──────
+#
+# The locator strategy:
+#
+#   Each patch defines a regex anchored on STRUCTURALLY STABLE elements of
+#   the minified source — function signature shape, literal strings, AST
+#   shape — and extracts the unstable minified identifier (e.g. XFK, T_, dH)
+#   dynamically. This means routine minifier-name churn between Claude Code
+#   releases is handled automatically without editing this script.
+#
+# Resilience to "already patched" state:
+#
+#   Each locator tries the unpatched fingerprint first; if not found, it
+#   tries the patched fingerprint and derives OLD from NEW. This makes the
+#   script idempotent even when re-run against a binary that's already
+#   been patched (i.e. the OLD bytes no longer exist).
+#
+# When this still needs human re-derivation:
+#
+#   - If Anthropic restructures the source (function moves, control flow
+#     changes, literal renamed like "bash" → "shell-input"), the regex
+#     anchors fail. The script aborts with a clear error pointing at the
+#     specific patch — see the WHY section at the top for re-derivation steps.
+#
 /usr/bin/env python3 - "$BINARY" "$BACKUP" <<'PY'
-import os, sys, shutil
+import os, sys, shutil, re
 binary_path, backup_path = sys.argv[1], sys.argv[2]
 
-# Patch #1: disable mid-turn <system-reminder> injection for user input.
-# Source: src/utils/attachments.ts:1044 — INLINE_NOTIFICATION_MODES Set.
-# Removing 'prompt' from the set means user-typed messages are no longer
-# emitted as queued_command attachments mid-turn. The 'task-notification'
-# entry is preserved (load-bearing for proactive-loop SleepTool wake-up).
-PATCH1_OLD = b'new Set(["prompt","task-notification"])'
-PATCH1_NEW = b'new Set(["__off_","task-notification"])'
 
-# Patch #2: disable queue bundling in processQueueIfReady.
-# Source: src/utils/queueProcessor.ts:52 — the single-item drain branch is
-# gated on `isSlashCommand(next) || next.mode === 'bash'`. Replacing the
-# bash check with the tautology `q.mode === q.mode` makes the gate always
-# true, forcing every queued command through the single-item dequeue path.
-PATCH2_OLD = b'XFK(q)||q.mode==="bash"'
-PATCH2_NEW = b'XFK(q)||q.mode===q.mode'
+class PatchError(Exception):
+    pass
 
-# Patch #3: stop the mid-turn `removeFromQueue` from evicting prompt-mode
-# commands that patch #1 prevented from being attached.
-#
-# Source: src/query.ts:1632 — the streaming loop, right after attachments
-# are built for the tool result, runs:
-#
-#   const consumedCommands = queuedCommandsSnapshot.filter(
-#     cmd => cmd.mode === 'prompt' || cmd.mode === 'task-notification',
-#   )
-#   ...
-#   removeFromQueue(consumedCommands)
-#
-# This is the "consumed = attached" half of the mid-turn drain machinery.
-# Its filter is HARDCODED to {'prompt','task-notification'} and assumes
-# anything matching was already turned into a queued_command attachment by
-# getQueuedCommandAttachments (which uses INLINE_NOTIFICATION_MODES).
-#
-# Patch #1 broke that invariant: we removed 'prompt' from
-# INLINE_NOTIFICATION_MODES (so prompt commands are no longer attached
-# mid-turn) but left this filter alone — so prompt commands were still
-# being REMOVED from the queue, without ever being delivered. Result: user
-# messages typed mid-turn were silently dropped instead of draining
-# post-turn via queueProcessor. Symptom: "my whole queue disappeared when
-# you ran bash."
-#
-# Fix: rewrite the filter so it no longer matches 'prompt'. Same trick as
-# patch #1 — replace the literal "prompt" with "__off_" (6 chars, never a
-# real mode). The 'task-notification' branch is preserved so background
-# subagent notifications still get attached AND removed (their original,
-# correct behavior).
-PATCH3_OLD = b'T_.mode==="prompt"||T_.mode==="task-notification"'
-PATCH3_NEW = b'T_.mode==="__off_"||T_.mode==="task-notification"'
 
-PATCHES = [
-    ("PATCH #1 INLINE_NOTIFICATION_MODES", PATCH1_OLD, PATCH1_NEW),
-    ("PATCH #2 processQueueIfReady",       PATCH2_OLD, PATCH2_NEW),
-    ("PATCH #3 query.ts mid-turn remove",  PATCH3_OLD, PATCH3_NEW),
+def locate_patch_1(data):
+    """Patch #1: src/utils/attachments.ts — INLINE_NOTIFICATION_MODES Set.
+
+    The literal Set contents are invariant across releases (string contents
+    are not touched by minification). Remove 'prompt' from the set so
+    user-typed messages are no longer emitted as queued_command attachments
+    mid-turn. Keep 'task-notification' (load-bearing for SleepTool wake-up).
+    """
+    old = b'new Set(["prompt","task-notification"])'
+    new = b'new Set(["__off_","task-notification"])'
+    return old, new
+
+
+def locate_patch_2(data):
+    """Patch #2: src/utils/queueProcessor.ts — processQueueIfReady bash branch.
+
+    Anchored on the function signature shape (parameter destructure +
+    `agentId===void 0` arrow), which the source defines and the minifier
+    can't restructure. Inside that function, find the bash check and
+    extract the (unstable) minified isSlashCommand identifier. Replace
+    `"bash"` with `q.mode` so the gate becomes tautologically true,
+    forcing every queued command through the single-item dequeue path
+    instead of the bundled drain.
+    """
+    # Unpatched: `<slash>(q)||q.mode==="bash"`
+    m = re.search(rb'([A-Za-z_$0-9]+)\(q\)\|\|q\.mode==="bash"', data)
+    if m:
+        old = m.group(0)
+        new = old.replace(b'"bash"', b'q.mode')
+        return old, new
+    # Idempotency: already patched. Derive OLD from NEW.
+    m = re.search(rb'([A-Za-z_$0-9]+)\(q\)\|\|q\.mode===q\.mode', data)
+    if m:
+        new = m.group(0)
+        old = new.replace(b'q.mode===q.mode', b'q.mode==="bash"')
+        return old, new
+    raise PatchError(
+        "could not locate processQueueIfReady bash check — neither the "
+        "unpatched fingerprint `XXX(q)||q.mode===\"bash\"` nor the patched "
+        "tautology `XXX(q)||q.mode===q.mode` matched. Source structure may "
+        "have changed; re-derive against src/utils/queueProcessor.ts."
+    )
+
+
+def locate_patch_3(data):
+    """Patch #3: src/query.ts — mid-turn removeFromQueue filter.
+
+    Anchored on the filter shape `X.mode==="prompt"||X.mode==="task-notification"`
+    with a backreference forcing both sides to use the same minified var.
+    Replace the `"prompt"` literal with `"__off_"` so the filter no longer
+    matches prompt-mode commands (preserving the 'task-notification' branch
+    so background subagent notifications still drain correctly).
+    """
+    # Unpatched
+    m = re.search(
+        rb'([A-Za-z_$0-9]+)\.mode==="prompt"\|\|\1\.mode==="task-notification"',
+        data,
+    )
+    if m:
+        old = m.group(0)
+        new = old.replace(b'"prompt"', b'"__off_"')
+        return old, new
+    # Idempotency: already patched.
+    m = re.search(
+        rb'([A-Za-z_$0-9]+)\.mode==="__off_"\|\|\1\.mode==="task-notification"',
+        data,
+    )
+    if m:
+        new = m.group(0)
+        old = new.replace(b'"__off_"', b'"prompt"')
+        return old, new
+    raise PatchError(
+        "could not locate query.ts mid-turn removeFromQueue filter. "
+        "Source structure may have changed; re-derive against src/query.ts."
+    )
+
+
+LOCATORS = [
+    ("PATCH #1 INLINE_NOTIFICATION_MODES", locate_patch_1),
+    ("PATCH #2 processQueueIfReady",       locate_patch_2),
+    ("PATCH #3 query.ts mid-turn remove",  locate_patch_3),
 ]
-
-for name, old, new in PATCHES:
-    if len(old) != len(new):
-        sys.exit(f"length mismatch on {name}: {len(old)} vs {len(new)}")
 
 with open(binary_path, "rb") as f:
     data = f.read()
 
-# Idempotency: if both patches are already present, exit early.
-already_applied = all(data.count(new) == 1 and data.count(old) == 0
-                       for _, old, new in PATCHES)
+# Resolve all patches up front. If any locator fails, abort before touching
+# the binary (so we never leave it half-patched).
+resolved = []
+for name, locator in LOCATORS:
+    try:
+        old, new = locator(data)
+    except PatchError as e:
+        sys.exit(f"{name}: {e}")
+    if len(old) != len(new):
+        sys.exit(f"{name}: length mismatch — old={len(old)}, new={len(new)}")
+    resolved.append((name, old, new))
+
+# Idempotency: if every patch's NEW already present (and OLD absent), bail.
+already_applied = all(
+    data.count(new) == 1 and data.count(old) == 0
+    for _, old, new in resolved
+)
 if already_applied:
-    print("[skip] binary already has both patches applied. Nothing to do.")
+    print("[skip] binary already has all patches applied. Nothing to do.")
     sys.exit(0)
 
-# First-time patch: snapshot pristine bytes (only if no backup yet).
+# First-time patch on this binary: snapshot pristine bytes.
 if not os.path.exists(backup_path):
     shutil.copy2(binary_path, backup_path)
     print(f"[backup] saved pristine bytes to {backup_path}")
@@ -326,7 +392,7 @@ else:
           "(it should be the pristine Anthropic-signed bytes from before "
           "the first patch).")
 
-for name, old, new in PATCHES:
+for name, old, new in resolved:
     n_old = data.count(old)
     n_new = data.count(new)
     if n_new == 1 and n_old == 0:
@@ -334,10 +400,9 @@ for name, old, new in PATCHES:
         continue
     if n_old != 1:
         sys.exit(
-            f"{name}: expected exactly 1 occurrence of {old!r} in the binary, found {n_old}. "
-            "The minified naming or literal probably changed in this Claude Code "
-            "release. Re-derive the patch against the new src/utils source — see "
-            "the 'UNIQUENESS / SAFETY' section at the top of this script."
+            f"{name}: expected exactly 1 occurrence of {old!r} in the binary, "
+            f"found {n_old}. The locator found a candidate but uniqueness "
+            "isn't satisfied — manual investigation needed."
         )
     data = data.replace(old, new)
     print(f"  ✓ applied {name}")
