@@ -5,7 +5,7 @@ description: "Monarch Money (mm) personal finance API. Query accounts, transacti
 
 # Monarch Money
 
-All operations go through `mm.py` — a single CLI wrapping the `monarchmoney` Python library. Everything the skill needs lives inside this folder: scripts, state (session, rules), and docs. No external state directories.
+All operations go through `mm.py` — a single CLI wrapping the `monarchmoneycommunity` Python library (community fork of `monarchmoney`; same `from monarchmoney import …` import path, actively maintained, includes the get_budgets GraphQL fix). Everything the skill needs lives inside this folder: scripts, state (session, rules), and docs. No external state directories.
 
 ## Quick start
 
@@ -23,19 +23,27 @@ Let `mm.py` = `~/.config/config-venv/bin/python3 ~/.config/claude/skills/monarch
 
 ## First-time setup
 
-**Email/password login is blocked by Cloudflare** — must use a browser session token.
+**Email/password login is blocked by Cloudflare** — must use a browser session.
 
-1. Open `https://app.monarch.com/dashboard`, DevTools console (⌘⌥J), run:
-   ```js
-   const u = JSON.parse(JSON.parse(localStorage['persist:root']).user); copy(JSON.stringify({token: u.token}))
-   ```
-2. Save to the skill's state folder:
+**As of 2026, Monarch dropped Authorization-bearer-token auth** in favor of HttpOnly session cookies + CSRF token. The old `localStorage['persist:root'].user.token` is `null` and not usable. You must extract the live cookies via Chrome's "Copy as cURL".
+
+1. Open `https://app.monarch.com/dashboard` and log in.
+2. Open DevTools → **Network** tab → filter `Fetch/XHR` → refresh the page.
+3. Right-click any `graphql` request → **Copy** → **Copy as cURL** (bash).
+4. Pipe it into the skill:
    ```bash
-   mkdir -p ~/.config/claude/skills/monarch-money/state && pbpaste > ~/.config/claude/skills/monarch-money/state/session.json
+   pbpaste | mm.py set-session
    ```
-3. Run `mm.py doctor --fix` — installs pinned deps, patches the library's BASE_URL, verifies the API, and seeds default tag rules.
+   This parses the `cookie:`, `x-csrftoken:`, and `device-uuid:` headers and writes `state/session.json` in the new shape:
+   ```json
+   {"cookie":"sessionid=...; csrftoken=...","csrftoken":"...","device_uuid":"..."}
+   ```
+5. Run `mm.py doctor --fix` — installs pinned deps, patches the library's BASE_URL, verifies the API, and seeds default tag rules.
 
-When the token expires, repeat steps 1–2 and re-run `mm.py doctor`.
+When the session expires (typically a few weeks), repeat steps 2–4. The `set-session` command is idempotent — it overwrites cleanly.
+
+### Legacy fallback (pre-2026 sessions)
+The loader still recognizes the old `{"token":"XXX"}` shape, but the API rejects those tokens — only kept for historical session files. New sessions must use the cookie shape.
 
 ## User preferences (LOAD THIS FIRST)
 
@@ -159,7 +167,8 @@ mm.py bulk-tag --apply             # commit
 
 - `set_transaction_tags` can fail on split transactions server-side (`TransportQueryError`). `bulk-tag` wraps in try/except and continues; individual `set-tags` prints error and exits 2.
 - Monarch's Plaid feed sometimes marks routine 401(k) contributions as `needsReview: true` with category `Uncategorized`. `month-review` will flag these — verify before re-categorizing. This skill was designed to catch exactly this kind of auto-miscategorization (a positive-valued "expense" flipping `sumExpense` sign).
-- Library uses `https://api.monarch.com` (not `api.monarchmoney.com`). `doctor --fix` patches the installed package automatically.
-- Python venv at `~/.config/config-venv/bin/python3` (shared across skills; Python 3.12). Library needs `gql<4` — `doctor --fix` pins this.
+- Library uses `https://api.monarch.com` (not `api.monarchmoney.com`). `doctor --fix` patches the legacy package if needed (community fork already uses the right domain).
+- Python venv at `~/.config/config-venv/bin/python3` (shared across skills; Python 3.12). `monarchmoneycommunity` requires `gql>=4`; legacy `monarchmoney` requires `gql<4` — `doctor` detects which package is installed and applies the right pin.
+- If `doctor` detects the legacy `monarchmoney` package, it offers to swap to `monarchmoneycommunity` automatically (`doctor --fix`). The fork is a drop-in (same module name) and fixes upstream issues like the broken `get_budgets` query.
 
 See `references/api.md` for full Python method signatures.
