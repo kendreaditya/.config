@@ -30,5 +30,18 @@
   "feedbackSurveyState": {
     "lastShownTime": 1754041016117
   },
-  "agentPushNotifEnabled": true
+  "agentPushNotifEnabled": true,
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.config/scripts/claude-session-start-repatch.sh"
+          }
+        ]
+      }
+    ]
+  }
 }
