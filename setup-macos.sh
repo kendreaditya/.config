@@ -62,7 +62,7 @@ brew install --cask --force raycast zed todoist zoom alt-tab bruno \
   hiddenbar blackhole-2ch ollama hammerspoon karabiner-elements \
   visual-studio-code google-chrome warp ghostty logseq obsidian postman \
   claude claude-code codex codex-app whatsapp \
-  protonvpn cloudflare-warp finetune
+  protonvpn cloudflare-warp finetune iina
 
 # TomatoBar: install from kendreaditya/TomatoBar (private fork of ivoronin/TomatoBar).
 # Adds tomatobar://start, ://stop, ://skipRest, and ?duration= overrides used by
