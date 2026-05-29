@@ -36,15 +36,15 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import datetime as dt
-import gzip
 import html
 import json
+import os
 import re
-import sys
+import subprocess
 import time
-import urllib.error
+import sys
+import tempfile
 import urllib.parse
-import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Iterator
 
@@ -69,33 +69,68 @@ class BlindNotFound(BlindError):
 
 
 def fetch_rsc(path: str, *, debug: bool = False) -> str:
-    """Fetch a teamblind.com path as an RSC payload (text/x-component)."""
+    """Fetch a teamblind.com path as an RSC payload (text/x-component).
+
+    Uses curl --http2 because Blind's CloudFront distribution returns 403
+    for HTTP/1.1 connections regardless of headers. Python's urllib only
+    speaks HTTP/1.1, so we shell out to curl which negotiates HTTP/2 via ALPN.
+    """
     if path.startswith("http"):
-        # Caller passed a full URL — accept it.
         url = path
     else:
         url = BASE + path
     sep = "&" if "?" in url else "?"
     url = f"{url}{sep}_rsc={RSC_TOKEN}"
-    headers = {
-        "rsc": "1",
-        "accept": "*/*",
-        "user-agent": UA,
-        "accept-encoding": "gzip",
-    }
-    req = urllib.request.Request(url, headers=headers)
+
+    if debug:
+        sys.stderr.write(f"[fetch] {url}\n")
+
+    fd, tmp = tempfile.mkstemp(prefix="blind_", suffix=".bin")
+    os.close(fd)
     try:
-        resp = urllib.request.urlopen(req, timeout=20)
-    except urllib.error.HTTPError as e:
-        raise BlindError(f"HTTP {e.code} for {url}") from e
-    except urllib.error.URLError as e:
-        raise BlindError(f"network error for {url}: {e.reason}") from e
-    raw = resp.read()
-    if resp.headers.get("content-encoding") == "gzip":
-        raw = gzip.decompress(raw)
+        cmd = [
+            "curl", "-s", "-L", "--http2", "--compressed",
+            "-H", "rsc: 1",
+            "-H", "accept: */*",
+            "-H", f"user-agent: {UA}",
+            "-H", "accept-language: en-US,en;q=0.9",
+            "--max-time", "20",
+            "-w", "%{http_code}",
+            "-o", tmp,
+            url,
+        ]
+        last_err: str = ""
+        for attempt in range(3):
+            if attempt:
+                time.sleep(2 ** attempt)  # 2s, 4s backoff on retry
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                last_err = result.stderr.strip() or f"exit {result.returncode}"
+                continue
+            status = result.stdout.strip()
+            if status == "429" or (status.startswith("4") and status not in ("403", "404")):
+                last_err = f"HTTP {status}"
+                continue
+            if status.startswith("5"):
+                last_err = f"HTTP {status}"
+                continue
+            break
+        else:
+            raise BlindError(f"curl error for {url}: {last_err}")
+
+        if status.startswith("4") or status.startswith("5"):
+            raise BlindError(f"HTTP {status} for {url}")
+        with open(tmp, "rb") as f:
+            raw = f.read()
+    finally:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+
     text = raw.decode("utf-8", errors="replace")
     if debug:
-        sys.stderr.write(f"[fetch] {url} -> {len(text)} bytes\n")
+        sys.stderr.write(f"[fetch] {url} -> HTTP {status}, {len(text)} chars\n")
     return text
 
 
@@ -270,14 +305,18 @@ def is_not_found(text: str) -> bool:
     Real Blind 404s come back as ~633 KB exact, all rendering the same
     NotFound boundary. The reliable signal is "no records have any post
     objects in them".
+
+    Article pages use articleAlias/commentList (not articleType), so check
+    both to avoid false-positive 404 detection on /post/ pages.
     """
     # Quick size heuristic: real Blind pages we care about are well over
     # 700 KB. 404s are stable at ~633 KB.
     if len(text) > 700_000:
         return False
-    return not any(
-        '"articleType"' in v for v in parse_records(text).values()
-    )
+    values = list(parse_records(text).values())
+    has_feed_content = any('"articleType"' in v for v in values)
+    has_article_content = any('"commentList"' in v or '"articleAlias"' in v for v in values)
+    return not (has_feed_content or has_article_content)
 
 
 def is_silent_fallback(text: str, expected_path: str) -> bool:
@@ -408,7 +447,7 @@ def extract_article(text: str) -> Article:
         author_nickname=author_nickname,
         author_company=author_company,
         channel_name=channel_name,
-        url=f"{BASE}/article/{alias}" if alias else "",
+        url=f"{BASE}/post/{alias}" if alias else "",
         pinned=pinned,
         comments=comments,
         total_comment_count=total_count or len(comments),
@@ -705,7 +744,7 @@ def cmd_read(args: argparse.Namespace) -> int:
     alias = alias_from_url(args.url)
     if not alias:
         raise BlindError(f"could not parse alias from {args.url!r}")
-    path = f"/article/{alias}"
+    path = f"/post/{alias}"
     text = fetch_rsc(path, debug=args.verbose)
     if is_not_found(text):
         raise BlindNotFound(f"no such article: {alias}")
@@ -751,11 +790,12 @@ def cmd_feed(args: argparse.Namespace) -> int:
 
 
 def cmd_company(args: argparse.Namespace) -> int:
-    path = f"/company/{args.name}"
+    # Blind moved company pages from /company/<Name> to /topics/<Name>.
+    # Valid company topic pages embed the bare domain in og:url (same as home),
+    # so is_silent_fallback can't distinguish them — rely on is_not_found only.
+    path = f"/topics/{args.name}"
     text = fetch_rsc(path, debug=args.verbose)
     if is_not_found(text):
-        raise BlindNotFound(f"no such company page: {args.name}")
-    if is_silent_fallback(text, path):
         raise BlindNotFound(f"no such company page: {args.name}")
     posts = extract_post_list(text)
     truncated = False
@@ -777,7 +817,7 @@ def cmd_export(args: argparse.Namespace) -> int:
     alias = alias_from_url(args.url)
     if not alias:
         raise BlindError(f"could not parse alias from {args.url!r}")
-    text = fetch_rsc(f"/article/{alias}", debug=args.verbose)
+    text = fetch_rsc(f"/post/{alias}", debug=args.verbose)
     if is_not_found(text):
         raise BlindNotFound(f"no such article: {alias}")
     article = extract_article(text)
