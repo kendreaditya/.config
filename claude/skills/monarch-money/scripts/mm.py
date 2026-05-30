@@ -511,13 +511,37 @@ async def main():
     if cmd == "set-session":
         # Accept cURL pasted on stdin or in argv after the command.
         # Parses 'Copy as cURL' from Chrome DevTools and saves cookies + csrftoken.
-        if len(args) > 1:
+        #
+        # `--json` mode: read a JSON dict {cookie, csrftoken, device_uuid} on stdin
+        # instead of a cURL. Used by the chrome-devtools MCP auto-refresh path, where
+        # the three values are read straight off a live graphql request's headers and
+        # passing them as JSON avoids fragile cURL-string escaping of cookie values.
+        if "--json" in args[1:]:
+            raw = sys.stdin.read().strip()
+            try:
+                session_data = json.loads(raw)
+            except json.JSONDecodeError as e:
+                print(f"ERROR: --json expects a JSON dict on stdin: {e}", file=sys.stderr)
+                sys.exit(2)
+            if not isinstance(session_data, dict):
+                print("ERROR: --json payload must be a JSON object.", file=sys.stderr)
+                sys.exit(2)
+            # keep only the keys the loader understands
+            session_data = {k: session_data[k] for k in ("cookie", "csrftoken", "device_uuid") if k in session_data}
+            if session_data.get("cookie") and not session_data.get("csrftoken"):
+                from _mm_common import _extract_csrf
+                csrf = _extract_csrf(session_data["cookie"])
+                if csrf:
+                    session_data["csrftoken"] = csrf
+        elif len(args) > 1:
             curl_text = " ".join(args[1:])
+            from _mm_common import parse_curl_to_session
+            session_data = parse_curl_to_session(curl_text)
         else:
             print("Paste your `Copy as cURL` from DevTools (Ctrl-D when done):", file=sys.stderr)
             curl_text = sys.stdin.read()
-        from _mm_common import parse_curl_to_session
-        session_data = parse_curl_to_session(curl_text)
+            from _mm_common import parse_curl_to_session
+            session_data = parse_curl_to_session(curl_text)
         if not session_data.get("cookie"):
             print("ERROR: no `cookie:` header found in cURL. Did you copy as cURL (bash) from Chrome?", file=sys.stderr)
             sys.exit(2)
