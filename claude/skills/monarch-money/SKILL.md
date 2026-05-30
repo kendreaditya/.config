@@ -42,6 +42,23 @@ Let `mm.py` = `~/.config/config-venv/bin/python3 ~/.config/claude/skills/monarch
 
 When the session expires (typically a few weeks), repeat steps 2–4. The `set-session` command is idempotent — it overwrites cleanly.
 
+### Auto-refresh via chrome-devtools MCP (preferred — no manual paste)
+
+If the chrome-devtools MCP is connected to the user's real Chrome AND a logged-in `app.monarch.com` tab is open, refresh the session yourself instead of asking the user to paste a cURL. This reads the live request headers over the DevTools protocol — including the HttpOnly `session_id` cookie that JS can't see — and never touches the macOS Keychain (decrypting Chrome's cookie store directly is off-limits).
+
+1. `list_pages` → confirm a logged-in `app.monarch.com` tab exists. (If Monarch itself logged the user out, stop — captured headers would be dead; the user must log back in first.)
+2. `navigate_page` type=reload on that tab to generate fresh requests.
+3. `list_network_requests` (resourceTypes: fetch, xhr) → find an `api.monarch.com/graphql` request.
+4. `get_network_request` reqid=<n> → read the `cookie`, `x-csrftoken`, and `device-uuid` **request** headers.
+5. Pipe them in as JSON (robust against cookie special-chars — preferred over synthesizing a cURL):
+   ```bash
+   echo '{"cookie":"<full cookie header>","csrftoken":"<x-csrftoken>","device_uuid":"<device-uuid>"}' \
+     | mm.py set-session --json
+   ```
+6. `mm.py doctor` to verify (`✅ API reachable`).
+
+`set-session` also still accepts a full `Copy as cURL` on stdin or argv (the `--json` flag just bypasses cURL parsing).
+
 ### Legacy fallback (pre-2026 sessions)
 The loader still recognizes the old `{"token":"XXX"}` shape, but the API rejects those tokens — only kept for historical session files. New sessions must use the cookie shape.
 
