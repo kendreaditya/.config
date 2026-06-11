@@ -37,9 +37,26 @@ Not every query needs every platform. Pick based on query type:
 
 #### Reddit
 ```bash
-curl -s "https://www.reddit.com/search.json?q=QUERY&limit=10&sort=relevance&t=year" \
-  -H "User-Agent: forage/1.0" | jq -r '.data.children[].data | "r/\(.subreddit): \(.title) [score:\(.score) comments:\(.num_comments)] \(.url)"'
+reddit-browser search "QUERY" --subreddit SUB --sort relevance --time year --limit 10 --json
+reddit-browser comments "<permalink-or-url>" --limit 8 --json   # pull a thread's top comments
 ```
+Use **`reddit-browser`** (at `~/.config/scripts/reddit-browser`) — it returns real
+Reddit JSON (`title, subreddit, score, num_comments, permalink, selftext, url`).
+Drop `--json` for a human-readable listing. `--subreddit`/`-r` is optional (omit
+for a site-wide search). To read a thread's discussion, pass its permalink to the
+`comments` subcommand.
+
+**Why this CLI and not `reddit`:** as of 2026-06 Reddit hard-403s every anonymous
+`*.json` request, and the Redlib mirrors the old `reddit` CLI fell back to are now
+**all dead** behind JS proof-of-work walls (header-spoofing and curl_cffi TLS
+impersonation both still 403). `reddit-browser` works around it by driving headless
+Chrome to clear the JS challenge and reuse the session cookie — **cold ~7s, warm
+~1.3s** (cookie cached 30 min). Needs the `~/.config/config-venv` venv (playwright +
+chromium). Run it with that venv active: `source ~/.config/config-venv/bin/activate`.
+
+If you ever add `REDDIT_CLIENT_ID`/`REDDIT_CLIENT_SECRET` to `~/.config/.env`, the
+lighter `reddit` CLI's OAuth path becomes viable again and is faster — but until
+then `reddit-browser` is the reliable Reddit leg.
 
 #### YouTube (search + optional transcript)
 ```bash
@@ -78,8 +95,7 @@ After gathering results from 2-4 platforms, synthesize into a response that:
 **Parallel execution:**
 ```bash
 # Reddit
-curl -s "https://www.reddit.com/search.json?q=bay+area+hikes+waterfalls&limit=10&sort=relevance&t=year" \
-  -H "User-Agent: forage/1.0"
+reddit-browser search "bay area hikes waterfalls" --sort relevance --time year --limit 10 --json
 
 # YouTube
 yt-dlp "ytsearch10:bay area hikes waterfalls" --dump-json --flat-playlist --no-warnings 2>/dev/null \

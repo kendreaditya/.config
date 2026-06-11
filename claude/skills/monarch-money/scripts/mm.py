@@ -25,7 +25,7 @@ READ:
 
 ANALYSIS:
   month-review [yyyy-mm]                 Summary + anomaly flags + untagged count
-  untagged [start] [end]                 List untagged expenses with live suggestions
+  untagged [--json] [start] [end]        List untagged expenses with live suggestions
   analyze                                Full confusion matrix → ~/Downloads/
   match-email <txn_id>                   Cross-reference Gmail for Amazon/merchant order
 
@@ -34,6 +34,7 @@ WRITE:
   update-transaction <id> <field> <value>
                                          fields: category_id, notes, reviewed, merchant
   set-tags <id> <tag>[,<tag>...]         Set tags (names/aliases/IDs). "" clears.
+  batch-set-tags                         Read <id> <tag>[,<tag>...] lines from stdin
   bulk-tag [--rules PATH] [--apply]      Apply rules from state/tag_rules.json
   bulk-tag --seed-rules                  Seed default rules file
   set-budget <cat_id> <amount> [year] [month]
@@ -55,7 +56,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _mm_common import (  # noqa: E402
     CONFIG_FILE, SESSION_FILE, SEED_RULES, STATE_DIR,
     TAG_ALIASES, TAG_INTENTS, TAG_RULES_FILE,
-    build_confidence, fetch_all_transactions, get_client,
+    build_confidence, detect_clusters, fetch_all_transactions, get_client,
     load_config, load_tag_rules, reexec_in_venv,
     resolve_tag, resolve_tag_map, run_doctor, save_tag_rules,
 )
@@ -112,6 +113,48 @@ async def cmd_set_tags(mm, txn_id, tag_spec):
         sys.exit(2)
 
 
+async def cmd_batch_set_tags(mm):
+    """Read lines from stdin: <id> <tag>[,<tag>...]. Apply all in one session."""
+    lines = sys.stdin.read().strip().split("\n")
+    if not lines or lines == [""]:
+        print("No input. Pipe lines of: <id> <tag>[,<tag>...]", file=sys.stderr)
+        sys.exit(1)
+
+    parsed = []
+    all_raw_tags = set()
+    for i, line in enumerate(lines):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split(None, 1)
+        if len(parts) < 2:
+            print(f"SKIP line {i+1}: need <id> <tag>[,<tag>...]: {line!r}", file=sys.stderr)
+            continue
+        txn_id, tag_spec = parts
+        raw_tags = [t.strip() for t in tag_spec.split(",") if t.strip()]
+        all_raw_tags.update(raw_tags)
+        parsed.append((txn_id, raw_tags))
+
+    resolved = {}
+    for raw in all_raw_tags:
+        try:
+            resolved[raw] = await resolve_tag(mm, raw)
+        except ValueError as e:
+            print(f"ERROR resolving tag '{raw}': {e}", file=sys.stderr)
+            sys.exit(1)
+
+    ok = fail = 0
+    for txn_id, raw_tags in parsed:
+        tag_ids = [resolved[r] for r in raw_tags]
+        try:
+            await mm.set_transaction_tags(transaction_id=txn_id, tag_ids=tag_ids)
+            ok += 1
+        except Exception as e:
+            fail += 1
+            print(f"  ERROR {txn_id}: {e}", file=sys.stderr)
+    print(f"Done: {ok} tagged, {fail} errors")
+
+
 async def cmd_transactions(mm, args):
     all_flag = "--all" in args
     positional = [a for a in args if a != "--all"]
@@ -132,7 +175,7 @@ async def cmd_transactions(mm, args):
         out(await mm.get_transactions(**kwargs))
 
 
-async def cmd_untagged(mm, start=None, end=None):
+async def cmd_untagged(mm, start=None, end=None, json_output=False):
     """
     List untagged expenses in range, with live tag suggestions.
     Suggestions computed from last 6 months of tagged history (no cached file).
@@ -158,15 +201,51 @@ async def cmd_untagged(mm, start=None, end=None):
     ]
     untagged.sort(key=lambda t: t["date"])
     total = sum(t["amount"] for t in untagged)
+    clusters = detect_clusters(untagged)
+
+    if json_output:
+        records = []
+        for t in untagged:
+            merchant = (t.get("merchant") or {}).get("name", "")
+            plaid = t.get("plaidName", "") or ""
+            category = (t.get("category") or {}).get("name", "")
+            sug = confidence.get(merchant)
+            cluster = clusters.get(t["id"])
+            rec = {
+                "id": t["id"],
+                "date": t["date"],
+                "amount": t["amount"],
+                "category": category,
+                "merchant": merchant,
+                "plaidName": plaid,
+                "suggestion": {
+                    "tag": sug["top_tag_name"],
+                    "confidence": sug["confidence"],
+                    "sample_size": sug["sample_size"],
+                } if sug else None,
+                "cluster": {
+                    "id": cluster["cluster_id"],
+                    "size": cluster["size"],
+                    "date_range": cluster["date_range"],
+                    "merchants": cluster["merchants"],
+                } if cluster else None,
+            }
+            records.append(rec)
+        out({"count": len(records), "total": total, "transactions": records})
+        return
 
     print(f"# {len(untagged)} untagged expense txns, total ${total:,.2f}  (suggestions from trailing 6mo, n={len(history)})")
-    print(f"{'ID':<20}\t{'DATE':<11}\t{'AMOUNT':>10}\t{'CATEGORY':<28}\t{'MERCHANT':<32}\tSUGGESTION")
+    print(f"{'ID':<20}\t{'DATE':<11}\t{'AMOUNT':>10}\t{'CATEGORY':<28}\t{'MERCHANT':<32}\t{'PLAID':<32}\tSUGGESTION")
     for t in untagged:
         merchant = (t.get("merchant") or {}).get("name", "")
+        plaid = t.get("plaidName", "") or ""
         category = (t.get("category") or {}).get("name", "")
         sug = confidence.get(merchant)
         sug_str = f"{sug['top_tag_name']} ({int(sug['confidence']*100)}%, n={sug['sample_size']})" if sug else "-"
-        print(f"{t['id']:<20}\t{t['date']:<11}\t{t['amount']:>10,.2f}\t{category[:28]:<28}\t{merchant[:32]:<32}\t{sug_str}")
+        cluster = clusters.get(t["id"])
+        if cluster:
+            sug_str += f" | CLUSTER: {cluster['size']} txns {cluster['date_range']}"
+        print(f"{t['id']:<20}\t{t['date']:<11}\t{t['amount']:>10,.2f}\t{category[:28]:<28}\t{merchant[:32]:<32}\t{plaid[:32]:<32}\t{sug_str}")
 
 
 async def cmd_analyze(mm):
@@ -527,9 +606,11 @@ async def main():
             year, month = now.year, now.month
         await cmd_month_review(mm, year, month)
     elif cmd == "untagged":
-        start = args[1] if len(args) > 1 else None
-        end = args[2] if len(args) > 2 else None
-        await cmd_untagged(mm, start, end)
+        json_flag = "--json" in args[1:]
+        positional = [a for a in args[1:] if a != "--json"]
+        start = positional[0] if len(positional) > 0 else None
+        end = positional[1] if len(positional) > 1 else None
+        await cmd_untagged(mm, start, end, json_output=json_flag)
     elif cmd == "analyze":
         await cmd_analyze(mm)
     elif cmd == "match-email":
@@ -551,6 +632,8 @@ async def main():
             print('       Tags may be names, aliases (RAK, social, essential...), or IDs.', file=sys.stderr)
             sys.exit(1)
         await cmd_set_tags(mm, args[1], args[2])
+    elif cmd == "batch-set-tags":
+        await cmd_batch_set_tags(mm)
     elif cmd == "bulk-tag":
         await cmd_bulk_tag(mm, args[1:])
     elif cmd == "set-budget":

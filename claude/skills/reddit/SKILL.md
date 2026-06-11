@@ -1,147 +1,139 @@
 ---
 name: reddit
-description: "Search Reddit, browse subreddits, read posts and comments, and look up user activity using the public JSON API. Use when the user wants to: search Reddit, find Reddit posts, browse a subreddit, read Reddit comments, check what's trending on Reddit, look up a Reddit user, research a topic on Reddit, get Reddit discussions, or any variation of 'reddit search', 'find posts about', 'what does r/X think about', 'reddit user', 'subreddit'."
+description: "Search Reddit, browse subreddits, read posts and comments, and look up user activity. Use when the user wants to: search Reddit, find Reddit posts, browse a subreddit, read Reddit comments, check what's trending on Reddit, look up a Reddit user, research a topic on Reddit, get Reddit discussions, or any variation of 'reddit search', 'find posts about', 'what does r/X think about', 'reddit user', 'subreddit'."
 ---
 
 # Reddit
 
-Search and browse Reddit via the public JSON API. No API key needed — just curl + jq.
-
-## Prerequisites
+Search and browse Reddit from the shell via the `reddit` CLI.
 
 ```bash
-which curl jq
+reddit search "<query>" [-r SUB] [--sort relevance|hot|new|top|comments] [--time hour|day|week|month|year|all] [--limit N] [--json] [-v]
+reddit subreddit <name> [--sort hot|new|top|rising|controversial] [--time ...] [--limit N] [--json] [-v]
+reddit comments <post-url-or-id> [--sort confidence|top|new|controversial|old|qa|best] [--limit N] [--json] [-v]
+reddit user <name> [--limit N] [--json] [-v]
 ```
 
-## Common Header
+Exit codes: `0` ok, `1` error, `2` not found. Default `--limit` is 10.
 
-All requests need a User-Agent header. Use this throughout:
+## Why a CLI (and not `curl .../search.json | jq`)
 
-```
--H "User-Agent: claude-reddit-skill/1.0"
-```
+Reddit's public unauthenticated `*.json` endpoints now return **HTTP 403** + an
+HTML block page for **every** host (`www`, `old`, `np`, `api`, `reddit.com`,
+even `oauth.reddit.com` without a token) and **every** User-Agent — including a
+real desktop browser UA. This is a blanket IP/anon block, not transient rate
+limiting, so the old `curl '…/search.json' | jq` recipe is dead (it pipes HTML
+into jq → parse error). The `reddit` CLI works around it with two backends:
 
-Rate limiting: Reddit throttles aggressively. Add `sleep 2` between sequential requests. If you get HTTP 429 or empty responses, back off 5-10 seconds.
+1. **OAuth (preferred, reliable)** — used automatically when credentials are in
+   the environment. Gets a userless/application-only (or password-grant) bearer
+   token from `https://www.reddit.com/api/v1/access_token`, then reads real JSON
+   from `https://oauth.reddit.com/...`.
+2. **Redlib HTML fallback (default today, flaky)** — when no creds are present,
+   it scrapes a public [Redlib](https://github.com/redlib-org/redlib) instance
+   (open-source Reddit frontend) and rotates through a list of instances on
+   failure. Redlib renders HTML — it does **not** expose Reddit's `.json` API —
+   so the CLI parses the page. **Instance availability is unreliable**: many are
+   403/down/behind an anti-bot interstitial at any given moment, and the one
+   live instance can rate-limit you under rapid-fire use. The CLI retries once
+   on transient errors, then rotates; if everything fails it exits `1` with a
+   clear message (never a jq-style crash). Add a `sleep` between rapid calls.
 
-## Search All of Reddit
+### Make it reliable: add OAuth creds (recommended)
+
+There are currently **no** `REDDIT_*` keys in `~/.config/.env`. To switch to the
+reliable OAuth path, register a Reddit app and add the creds:
+
+1. Go to <https://www.reddit.com/prefs/apps> → **create another app...**
+2. Choose type **script** (or **installed app** for userless-only). Set the
+   redirect URI to `http://localhost:8080` (unused but required).
+3. Note the **client id** (the string shown *under* the app name) and the
+   **secret**.
+4. Add to `~/.config/.env` (git-crypt-encrypted; re-source with
+   `source ~/.config/.env`):
+
+   ```bash
+   export REDDIT_CLIENT_ID=...
+   export REDDIT_CLIENT_SECRET=...
+   # Optional — enables the full password grant (more endpoints, higher limits):
+   export REDDIT_USERNAME=...
+   export REDDIT_PASSWORD=...
+   ```
+
+When `REDDIT_CLIENT_ID` + `REDDIT_CLIENT_SECRET` are present the CLI uses OAuth
+automatically — no flag needed. With `REDDIT_USERNAME`/`REDDIT_PASSWORD` it uses
+the `password` grant; otherwise the userless `client_credentials` grant. Secrets
+are never printed. Run any command with `-v` to confirm which backend/grant is
+in use (`backend=oauth` vs `backend=redlib`).
+
+To pin a specific Redlib instance (skip rotation): `export REDLIB_HOST=https://redlib.perennialte.ch`.
+
+## Search all of Reddit
 
 ```bash
-curl -s 'https://www.reddit.com/search.json?q=QUERY&limit=10&sort=relevance' \
-  -H "User-Agent: claude-reddit-skill/1.0" \
-  | jq -r '.data.children[] | .data | "\(.title)\n  r/\(.subreddit) | \(.score) pts | \(.num_comments) comments | u/\(.author)\n  https://reddit.com\(.permalink)\n"'
+reddit search "rust vs go backend 2026" --sort relevance --time year --limit 10
 ```
 
-### Parameters
-
-| Param | Values | Default |
-|-------|--------|---------|
-| `q` | search query (URL-encoded) | required |
-| `sort` | `relevance`, `hot`, `new`, `top`, `comments` | `relevance` |
-| `t` | `hour`, `day`, `week`, `month`, `year`, `all` | `all` |
-| `limit` | 1-100 | 25 |
-| `after` | pagination token from response | — |
+Sort: `relevance` (default), `hot`, `new`, `top`, `comments`. Time window
+(`--time`): `hour|day|week|month|year|all`.
 
 ### Search within a subreddit
 
 ```bash
-curl -s 'https://www.reddit.com/r/SUBREDDIT/search.json?q=QUERY&restrict_sr=on&sort=new&limit=10' \
-  -H "User-Agent: claude-reddit-skill/1.0" \
-  | jq -r '.data.children[] | .data | "\(.title) [\(.score) pts, \(.num_comments) comments]\n  https://reddit.com\(.permalink)\n"'
+reddit search "severance negotiation" -r cscareerquestions --sort new --limit 10
 ```
 
-`restrict_sr=on` limits results to that subreddit.
-
-## Browse a Subreddit
+## Browse a subreddit
 
 ```bash
-curl -s 'https://www.reddit.com/r/SUBREDDIT/hot.json?limit=10' \
-  -H "User-Agent: claude-reddit-skill/1.0" \
-  | jq -r '.data.children[] | .data | "\(.title)\n  \(.score) pts | \(.num_comments) comments | u/\(.author) | id: \(.id)\n"'
+reddit subreddit cscareerquestions --sort hot --limit 10
+reddit subreddit MechanicalKeyboards --sort top --time week --limit 10
 ```
 
-Replace `hot` with `new`, `top`, `rising`, or `controversial`. For `top`, add `&t=day` (or `week`, `month`, `year`, `all`).
+Sort: `hot` (default), `new`, `top`, `rising`, `controversial`. For `top`, set
+`--time`.
 
-### JSON output for further processing
+## Read a post + comments
+
+Pass a full Reddit URL, a `/r/<sub>/comments/<id>/...` path, a `t3_<id>`, or a
+bare post id. Comments come back as a nested tree.
 
 ```bash
-curl -s 'https://www.reddit.com/r/SUBREDDIT/top.json?t=week&limit=10' \
-  -H "User-Agent: claude-reddit-skill/1.0" \
-  | jq '[.data.children[] | .data | {title, score, num_comments, author, id, url, created: (.created_utc | todate), selftext: .selftext[0:200]}]'
+reddit comments "https://reddit.com/r/csMajors/comments/1lu48je/the_trade_desk_2026_summer_swe/" --limit 20
+reddit comments 1lu48je --sort top --limit 20
 ```
 
-## Read a Post + Comments
+Comment sort: `confidence` (default), `top`, `new`, `controversial`, `old`,
+`qa`, `best`.
 
-The response is a JSON array: `[0]` is the post, `[1]` is the comment tree.
+## User activity
 
 ```bash
-curl -s 'https://www.reddit.com/r/SUBREDDIT/comments/POST_ID.json?limit=20&sort=top' \
-  -H "User-Agent: claude-reddit-skill/1.0" -o /tmp/reddit_thread.json
-
-# Post details
-jq '.[0].data.children[0].data | {title, score, author, selftext, url, num_comments, created: (.created_utc | todate)}' /tmp/reddit_thread.json
-
-# Top comments
-jq -r '.[1].data.children[] | select(.kind == "t1") | .data | "u/\(.author) (\(.score) pts):\n  \(.body[0:300])\n"' /tmp/reddit_thread.json
+reddit user spez --limit 10
 ```
 
-### Comment sort options
+Returns the user's recent posts and comments interleaved.
 
-Set `sort` param: `top`, `best`, `new`, `controversial`, `old`, `qa`.
+## JSON output
 
-### If you only have a full Reddit URL
-
-Append `.json` to any Reddit URL:
+Every command takes `--json` for structured, parseable output (use this when
+piping into other tools or when you need exact fields). Post objects expose
+`id, title, subreddit, author, score, num_comments, created_utc, url,
+permalink, selftext, is_self`.
 
 ```bash
-curl -s 'https://www.reddit.com/r/python/comments/abc123/some_title/.json?limit=20' \
-  -H "User-Agent: claude-reddit-skill/1.0"
+reddit search "trade desk codesignal" --json --limit 5
 ```
-
-## User Activity
-
-```bash
-curl -s 'https://www.reddit.com/user/USERNAME.json?limit=10' \
-  -H "User-Agent: claude-reddit-skill/1.0" \
-  | jq -r '.data.children[] | .data | "\(if .title then .title else "Comment in r/\(.subreddit)" end)\n  \(.score) pts | r/\(.subreddit) | https://reddit.com\(.permalink)\n"'
-```
-
-### Filter to posts only or comments only
-
-```bash
-# Posts only
-curl -s 'https://www.reddit.com/user/USERNAME/submitted.json?limit=10' \
-  -H "User-Agent: claude-reddit-skill/1.0" | jq '...'
-
-# Comments only
-curl -s 'https://www.reddit.com/user/USERNAME/comments.json?limit=10' \
-  -H "User-Agent: claude-reddit-skill/1.0" | jq '...'
-```
-
-## Pagination
-
-Every listing response includes `data.after` — pass it as `&after=TOKEN` to get the next page:
-
-```bash
-curl -s 'https://www.reddit.com/r/SUBREDDIT/new.json?limit=25&after=t3_abc123' \
-  -H "User-Agent: claude-reddit-skill/1.0"
-```
-
-Extract the token: `jq -r '.data.after' response.json`
-
-## Tips
-
-- Always single-quote URLs in curl to avoid shell interpretation of `&`
-- Use `-o /tmp/file.json` for large responses, then parse with jq separately
-- `.selftext` contains the post body (empty for link posts)
-- `.url` is the linked URL (for link posts) or the permalink (for self posts)
-- Timestamps: `.created_utc | todate` converts to ISO 8601
-- For subreddit info/rules: `https://www.reddit.com/r/SUBREDDIT/about.json`
 
 ## Troubleshooting
 
-| Issue | Fix |
-|-------|-----|
-| Empty response / 0 bytes | Rate limited — wait 5s and retry |
-| HTTP 429 | Back off 10-15s |
-| HTML instead of JSON | Add `-L` flag to follow redirects, or use `old.reddit.com` |
-| 403 Forbidden | Change User-Agent to a browser-like string |
+| Symptom | Cause / fix |
+|---|---|
+| `error: all Redlib instances failed` | Expected flakiness. Wait a few seconds and retry; the live instance may be briefly rate-limited. For reliability, add OAuth creds (above) or pin `REDLIB_HOST`. |
+| Empty / `(no results)` | Query too narrow, or the live Redlib instance returned a partial page. Retry, or broaden the query. |
+| Slow first call | Redlib rotation may try a couple of dead instances before reaching the live one. Pin `REDLIB_HOST` to skip rotation. |
+| Want exact counts/scores reliably | Use OAuth — Redlib abbreviates large counts (e.g. `12k`) which the CLI un-abbreviates, but OAuth returns exact integers. |
+| `backend=` shows redlib but you set creds | Re-source env: `source ~/.config/.env`, and confirm both `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` are set. |
+
+The CLI is a single stdlib-only Python file at
+`~/.claude/skills/reddit/scripts/reddit.py`, symlinked onto `$PATH` as `reddit`.

@@ -129,3 +129,6 @@ mlflow/
 vercel-plugin/
 
 # .env is committed ENCRYPTED via git-crypt (see .gitattributes)
+
+# Raycast installed-extensions cache (291MB of generated bundles; reinstallable from store)
+raycast-x/

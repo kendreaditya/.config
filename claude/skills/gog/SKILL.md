@@ -41,6 +41,7 @@ Common commands
 - Gmail send (stdin): `gog gmail send --to a@b.com --subject "Hi" --body-file -`
 - Gmail send (HTML): `gog gmail send --to a@b.com --subject "Hi" --body-html "<p>Hello</p>"`
 - Gmail send (with attachments): `gog gmail send --to a@b.com --subject "Hi" --body "See attached" --attach /path/to/file.pdf --attach /path/to/other.pdf`
+- Gmail send from alias: `gog gmail send --from aditya@kendre.me --to a@b.com --subject "Hi" --body "..." --account kendreaditya@gmail.com` — requires the alias to be a verified "Send mail as" entry in the Gmail account's settings. Currently wired: `aditya@kendre.me` (Resend SMTP relay; replies forward back via Cloudflare Email Routing). See memory `email_aliases.md`.
 - Gmail draft: `gog gmail drafts create --to a@b.com --subject "Hi" --body-file ./message.txt`
 - Gmail send draft: `gog gmail drafts send <draftId>`
 - Gmail reply: `gog gmail send --to a@b.com --subject "Re: Hi" --body "Reply" --reply-to-message-id <msgId>`
