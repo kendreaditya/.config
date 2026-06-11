@@ -50,6 +50,8 @@ TAG_ALIASES = {
     "wellness": "Health & Wellness",
     "sub": "Subscription",
     "transport": "Transportation",
+    "house": "Housing",
+    "housing": "Housing",
 }
 
 
@@ -238,6 +240,55 @@ def build_confidence(txns):
             "confidence": round(top_count / total, 3),
             "sample_size": total,
         }
+    return result
+
+
+def detect_clusters(txns, day_gap=2, min_size=3):
+    """Detect temporal clusters of transactions within `day_gap` days of each other."""
+    from datetime import date as Date
+
+    sorted_txns = sorted(txns, key=lambda t: t["date"])
+    clusters = []
+    current = []
+
+    for t in sorted_txns:
+        t_date = Date.fromisoformat(t["date"])
+        if not current:
+            current.append(t)
+        else:
+            last_date = Date.fromisoformat(current[-1]["date"])
+            if (t_date - last_date).days <= day_gap:
+                current.append(t)
+            else:
+                if len(current) >= min_size:
+                    clusters.append(current)
+                current = [t]
+    if len(current) >= min_size:
+        clusters.append(current)
+
+    result = {}
+    for i, cluster in enumerate(clusters):
+        dates = [Date.fromisoformat(t["date"]) for t in cluster]
+        min_d, max_d = min(dates), max(dates)
+        merchants = sorted(set(
+            (t.get("merchant") or {}).get("name", "Unknown") for t in cluster
+        ))
+        if min_d == max_d:
+            date_str = min_d.strftime("%b %-d")
+        elif min_d.month == max_d.month:
+            date_str = f"{min_d.strftime('%b %-d')}-{max_d.day}"
+        else:
+            date_str = f"{min_d.strftime('%b %-d')}-{max_d.strftime('%b %-d')}"
+
+        info = {
+            "cluster_id": i + 1,
+            "size": len(cluster),
+            "date_range": date_str,
+            "merchants": merchants,
+        }
+        for t in cluster:
+            result[t["id"]] = info
+
     return result
 
 

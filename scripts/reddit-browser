@@ -1,0 +1,155 @@
+#!/usr/bin/env python3
+"""reddit-browser — fetch Reddit JSON by driving a real headless Chrome.
+
+Why this exists
+---------------
+As of late-2025 Reddit hard-403s every *anonymous* request to its public
+`*.json` endpoints (www/old/oauth, any User-Agent, even with perfect Chrome
+TLS-impersonation via curl_cffi). The 403 body is a ~190KB `theme-beta` HTML
+*JS-challenge* page: it only clears when a real browser executes the JS and
+receives a session cookie. So we use Playwright Chromium to (1) load the
+homepage and clear the challenge, then (2) call the `.json` endpoint with an
+in-page fetch() that carries those cookies. Returns real JSON.
+
+We persist the cleared browser cookies to a storage-state file and reuse them,
+so steady-state calls skip the homepage round-trip until the cookie expires.
+
+Usage
+-----
+  reddit-browser search "QUERY" [--subreddit greecetravel] [--sort relevance]
+                                [--time year] [--limit 8] [--json]
+  reddit-browser comments "<permalink-or-url>" [--limit 8] [--json]
+
+Examples
+  reddit-browser search "acropolis free EU under 25 ID" --subreddit GreeceTravel
+  reddit-browser comments /r/GreeceTravel/comments/abc123/title/ --json
+
+Drop-in for the forage Reddit leg when the `reddit` CLI's Redlib fallback is
+walled and no OAuth creds are present.
+"""
+import argparse, asyncio, json, os, sys, time
+
+UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+      "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+STATE = os.path.expanduser("~/.cache/reddit-browser/state.json")
+STATE_TTL = 1800  # seconds; re-clear the challenge after this
+
+
+def _fresh_state():
+    try:
+        return (time.time() - os.path.getmtime(STATE)) < STATE_TTL
+    except OSError:
+        return False
+
+
+async def _goto_json(pg, url):
+    """Navigate straight to a .json URL; cookies attach automatically and there
+    is no cross-origin fetch() problem. Returns {status, body}."""
+    resp = await pg.goto(url, wait_until="domcontentloaded", timeout=45000)
+    status = resp.status if resp else 0
+    body = await resp.text() if resp else ""
+    return {"status": status, "body": body}
+
+
+async def _clear_challenge(pg):
+    await pg.goto("https://www.reddit.com/", wait_until="domcontentloaded", timeout=45000)
+    await pg.wait_for_timeout(3500)
+
+
+async def _fetch(url, force_new=False):
+    from playwright.async_api import async_playwright
+    os.makedirs(os.path.dirname(STATE), exist_ok=True)
+    use_state = os.path.exists(STATE) and _fresh_state() and not force_new
+    async with async_playwright() as p:
+        b = await p.chromium.launch(headless=True)
+        ctx = await b.new_context(
+            user_agent=UA, locale="en-US", viewport={"width": 1280, "height": 900},
+            storage_state=STATE if use_state else None,
+        )
+        pg = await ctx.new_page()
+        if not use_state:
+            await _clear_challenge(pg)
+        res = await _goto_json(pg, url)
+        # Cold start, or the cached cookie went stale -> clear the JS challenge once and retry.
+        if res["status"] != 200 or res["body"].lstrip()[:1] not in "{[":
+            await _clear_challenge(pg)
+            res = await _goto_json(pg, url)
+        try:
+            await ctx.storage_state(path=STATE)
+        except Exception:
+            pass
+        await b.close()
+        return res
+
+
+def _build_search_url(a):
+    from urllib.parse import quote
+    q = quote(a.query)
+    base = (f"https://www.reddit.com/r/{a.subreddit}/search.json?restrict_sr=on&"
+            if a.subreddit else "https://www.reddit.com/search.json?")
+    return f"{base}q={q}&sort={a.sort}&t={a.time}&limit={a.limit}&raw_json=1"
+
+
+def _norm_permalink(s):
+    if s.startswith("http"):
+        from urllib.parse import urlparse
+        s = urlparse(s).path
+    s = s.rstrip("/")
+    return f"https://www.reddit.com{s}.json?raw_json=1&limit=100"
+
+
+def main():
+    ap = argparse.ArgumentParser(prog="reddit-browser")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    s = sub.add_parser("search")
+    s.add_argument("query")
+    s.add_argument("--subreddit", "-r", default="")
+    s.add_argument("--sort", default="relevance", choices=["relevance", "hot", "top", "new", "comments"])
+    s.add_argument("--time", default="all", choices=["hour", "day", "week", "month", "year", "all"])
+    s.add_argument("--limit", type=int, default=8)
+    s.add_argument("--json", action="store_true")
+    c = sub.add_parser("comments")
+    c.add_argument("permalink")
+    c.add_argument("--limit", type=int, default=8)
+    c.add_argument("--json", action="store_true")
+    a = ap.parse_args()
+
+    if a.cmd == "search":
+        res = asyncio.run(_fetch(_build_search_url(a)))
+        if res["status"] != 200:
+            print(f"error: HTTP {res['status']} (challenge not cleared)", file=sys.stderr); sys.exit(1)
+        d = json.loads(res["body"])
+        posts = [c["data"] for c in d["data"]["children"]]
+        if a.json:
+            print(json.dumps([{k: p.get(k) for k in
+                ("title", "subreddit", "score", "num_comments", "permalink", "selftext", "url", "created_utc")}
+                for p in posts], indent=2)); return
+        for p in posts:
+            print(f"▲{p.get('score'):>5} 💬{p.get('num_comments'):>4}  r/{p.get('subreddit')}  —  {p.get('title','')}")
+            print(f"        https://www.reddit.com{p.get('permalink','')}")
+            if p.get("selftext"):
+                print("        " + p["selftext"][:240].replace("\n", " "))
+            print()
+
+    elif a.cmd == "comments":
+        res = asyncio.run(_fetch(_norm_permalink(a.permalink)))
+        if res["status"] != 200:
+            print(f"error: HTTP {res['status']} (challenge not cleared)", file=sys.stderr); sys.exit(1)
+        arr = json.loads(res["body"])
+        post = arr[0]["data"]["children"][0]["data"]
+        comments = [c["data"] for c in arr[1]["data"]["children"] if c.get("kind") == "t1"]
+        comments.sort(key=lambda c: c.get("score", 0), reverse=True)
+        if a.json:
+            print(json.dumps({"title": post.get("title"), "selftext": post.get("selftext"),
+                "comments": [{"author": c.get("author"), "score": c.get("score"), "body": c.get("body")}
+                             for c in comments[:a.limit]]}, indent=2)); return
+        print(f"# {post.get('title')}  (▲{post.get('score')} 💬{post.get('num_comments')})")
+        if post.get("selftext"): print(post["selftext"][:500]); print()
+        print(f"--- top {min(a.limit,len(comments))} comments ---")
+        for c in comments[:a.limit]:
+            print(f"\n▲{c.get('score')} u/{c.get('author')}:")
+            print("  " + c.get("body", "").strip()[:500].replace("\n", "\n  "))
+
+
+if __name__ == "__main__":
+    main()

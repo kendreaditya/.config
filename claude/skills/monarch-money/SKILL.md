@@ -84,7 +84,7 @@ subscription                        Account status
 ### Analysis
 ```
 month-review [yyyy-mm]              Summary + anomaly flags + untagged count
-untagged [start] [end]              Untagged expenses with live merchant-based suggestions
+untagged [--json] [start] [end]     Untagged expenses with live suggestions + plaidName + cluster detection
                                     (computed from trailing 6 months — no cached file)
 analyze                             Confusion matrix → ~/Downloads/mm_tag_analysis.json
 match-email <txn_id>                Cross-ref Gmail for order contents (via gog)
@@ -95,6 +95,7 @@ match-email <txn_id>                Cross-ref Gmail for order contents (via gog)
 refresh                             Trigger account sync + wait
 update-transaction <id> <field> <value>   fields: category_id, notes, reviewed, merchant
 set-tags <id> <tag>[,<tag>...]      Names, aliases (RAK, social, essential...), or IDs
+batch-set-tags                      Read <id> <tag>[,<tag>...] lines from stdin, apply all
 bulk-tag [--apply]                  Apply state/tag_rules.json (dry-run default)
 bulk-tag --seed-rules               Seed default rules file
 set-budget <cat_id> <amount> [y] [m]
@@ -130,8 +131,9 @@ Run `mm.py tags` for the live list. Aliases accepted by `set-tags`:
 | `health`, `wellness` | Health & Wellness |
 | `sub` | Subscription |
 | `transport` | Transportation |
+| `house`, `housing` | Housing |
 
-Tags also resolve by case-insensitive prefix (e.g. `house` → Housing).
+Tags also resolve by case-insensitive prefix as a fallback.
 
 ## Common recipes
 
@@ -161,6 +163,55 @@ mm.py month-review                 # sign flips, 2σ deviations, large Uncategor
 # {"merchant": "Starbucks", "tag": "Discretionary Spending"}
 mm.py bulk-tag                     # dry-run preview
 mm.py bulk-tag --apply             # commit
+```
+
+## Trip tagging workflow
+
+When reviewing untagged transactions, temporal clusters often indicate a trip or event
+(conference, family visit, friend weekend). The `untagged` command detects these
+automatically and annotates them with `CLUSTER: N txns DateRange`.
+
+**Workflow:**
+
+1. **Identify the cluster:**
+   ```bash
+   mm.py untagged 2026-05-01 2026-05-31
+   ```
+   Look for rows annotated with `CLUSTER:`. The date range and merchant list
+   reveal the trip shape. The PLAID column helps identify mystery merchants
+   (e.g. "Apple Card, Cash, and Savings" → plaidName "Movement").
+
+2. **Determine trip purpose** — ask the user:
+   - Family visit → `parental` (or `parental` + `travel`)
+   - Friend trip → `social` + `travel`
+   - Solo adventure → `travel`
+   - Conference → `health` or `social` depending on intent
+
+3. **Tag the whole block at once:**
+   ```bash
+   # Option A: pipe from JSON output filtered by cluster
+   mm.py untagged --json 2026-05-01 2026-05-31 \
+     | jq -r '.transactions[] | select(.cluster != null and .cluster.id == 1) | "\(.id) social,travel"' \
+     | mm.py batch-set-tags
+
+   # Option B: manual list
+   printf '12345 social,travel\n12346 social,travel\n' | mm.py batch-set-tags
+   ```
+
+4. **Verify:** Re-run `mm.py untagged` — the cluster should be gone.
+
+**Batch-tag from a draft file:**
+```bash
+# Prepare a file with one <id> <tag> per line (# comments allowed)
+cat > /tmp/tags.txt <<EOF
+# May conference
+242719919225699636 health
+242719919225699640 health
+# Europe trip
+243582883560422748 social,travel
+243582883560422747 social,travel
+EOF
+mm.py batch-set-tags < /tmp/tags.txt
 ```
 
 ## Known issues

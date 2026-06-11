@@ -1,6 +1,19 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "cleanupPeriodDays": 99999,
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.config/scripts/claude-session-start-repatch.sh"
+          }
+        ]
+      }
+    ]
+  },
   "enabledPlugins": {
     "swift-lsp@claude-plugins-official": true,
     "skillsmp@local": true,
@@ -26,22 +39,9 @@
   "autoMemoryDirectory": "~/.claude/memory",
   "autoDreamEnabled": true,
   "skipDangerousModePermissionPrompt": true,
+  "agentPushNotifEnabled": true,
   "voiceEnabled": true,
   "feedbackSurveyState": {
     "lastShownTime": 1754041016117
-  },
-  "agentPushNotifEnabled": true,
-  "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "startup",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.config/scripts/claude-session-start-repatch.sh"
-          }
-        ]
-      }
-    ]
   }
 }
