@@ -44,6 +44,9 @@ defaults write com.apple.controlcenter "NSStatusItem Visible FocusModes" -int 1
 defaults write com.apple.controlcenter "NSStatusItem Visible KeyboardBrightness" -int 1
 defaults write com.apple.controlcenter BatteryShowPercentage -bool true
 
+# Show seconds in the menu bar clock
+defaults write com.apple.menuextra.clock ShowSeconds -bool true
+
 # Force "Always Show in Menu Bar" (18) for Control Center modules on Tahoe+
 defaults -currentHost write com.apple.controlcenter Sound -int 18
 defaults -currentHost write com.apple.controlcenter FocusModes -int 18
