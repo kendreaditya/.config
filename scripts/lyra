@@ -1,0 +1,564 @@
+#!/usr/bin/env python3
+"""
+lyra — CLI for the Lyra Health provider network (facebook.lyrahealth.com).
+
+Searches the provider directory directly, bypassing the onboarding funnel.
+
+WHY THIS EXISTS
+  Lyra's onboarding runs a triage model that scores you into a tier, then only
+  shows providers matching that tier's *primary* treatment. A tier1 score means
+  you are shown Coaches (CPC certificate holders) and never see the licensed
+  therapist network -- even though therapy sits in your eligibleTreatmentOptions.
+  This tool queries both pools directly.
+
+  Coaches hold no state license, so location does not filter them (verified:
+  10 US metros return an identical roster). Therapists are state-licensed and
+  ARE filtered by search location -- set --location to where you physically are.
+
+USAGE
+  lyra login [-f FILE]           Import session from a "Copy as cURL" (stdin or file)
+  lyra status                    Check session validity
+  lyra search coach|therapist    Search a provider pool
+  lyra grep PATTERN              Regex-search bios of the last search
+  lyra show NAME                 Full record for one provider
+  lyra rank --terms A,B,C        Rank last search by keyword hits in bios
+  lyra sessions                  Sessions used + visit history
+  lyra episodes                  Your care episodes
+  lyra providers                 Your assigned providers + appointment counts
+  lyra benefits                  Employer benefit catalog
+  lyra sweep coach|therapist     Query many locations, union the results
+
+SETUP
+  1. Log in to facebook.lyrahealth.com in Chrome
+  2. DevTools -> Network -> any /services/ request -> Copy as cURL
+  3. pbpaste | lyra login
+
+  Sessions expire in ~30-60 min; re-run login when status reports expired.
+
+EXAMPLES
+  lyra search therapist --location "Santa Clara, CA" --max 300
+  lyra search coach --json > coaches.json
+  lyra grep -i 'buddhis|daois|philosoph'
+  lyra rank --terms burnout,perfectionism,career,identity
+  lyra show "Toi Lynn Wyle"
+"""
+import argparse
+import datetime
+import json
+import os
+import re
+import sys
+import time
+import urllib.error
+import urllib.request
+
+BASE = "https://facebook.lyrahealth.com"
+STATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lyra.d")
+CRED_FILE = os.path.join(STATE_DIR, "credentials.json")
+CACHE_FILE = os.path.join(STATE_DIR, "last_search.json")
+
+# Blended Care coaching program id. Present in coach searches, must be null for therapy.
+BCP = "7ec82ca3-843f-4996-bdf9-49d8c7a35ed5"
+
+# Geocoded defaults. Coach searches ignore these; therapist searches do not.
+LOCATIONS = {
+    "santa clara, ca": ("37.354107899999995, -121.9552356", "Santa Clara, CA, USA", "CA"),
+    "san francisco, ca": ("37.7749295, -122.4194155", "San Francisco, CA, USA", "CA"),
+    "new york, ny": ("40.7127753, -74.0059728", "New York, NY, USA", "NY"),
+    "seattle, wa": ("47.6062095, -122.3320708", "Seattle, WA, USA", "WA"),
+    "austin, tx": ("30.267153, -97.7430608", "Austin, TX, USA", "TX"),
+    "chicago, il": ("41.8781136, -87.6297982", "Chicago, IL, USA", "IL"),
+    "denver, co": ("39.7392358, -104.990251", "Denver, CO, USA", "CO"),
+    "boston, ma": ("42.3600825, -71.0588801", "Boston, MA, USA", "MA"),
+    "miami, fl": ("25.7616798, -80.1917902", "Miami, FL, USA", "FL"),
+    "lancaster, pa": ("40.0379890, -76.3055144", "Lancaster, PA, USA", "PA"),
+}
+DEFAULT_LOC = "santa clara, ca"
+
+# The API rejects a search with a null age (returns an empty list), but the value
+# itself is inert for adults -- 23, 30 and 45 all return an identical roster.
+DEFAULT_AGE = 30
+
+# The parameter combinations that actually return results. Discovered by probing:
+# partner must be "BlendedCare" for both pools; therapy additionally requires
+# blendedCareProgramId to be null. Any other pairing returns an empty list.
+POOLS = {
+    "coach": dict(treatment="Coaching", treatmentPreference="stressManagement",
+                  partner="BlendedCare", bcp=BCP),
+    "therapist": dict(treatment="Therapy", treatmentPreference="individualTherapy",
+                      partner="BlendedCare", bcp=None),
+}
+
+
+def die(msg, code=1):
+    print(f"lyra: {msg}", file=sys.stderr)
+    sys.exit(code)
+
+
+def out(data):
+    print(json.dumps(data, indent=2, default=str, ensure_ascii=False))
+
+
+# ---------------------------------------------------------------- credentials
+
+def load_creds():
+    if not os.path.exists(CRED_FILE):
+        die("no session. Run: pbpaste | lyra login")
+    with open(CRED_FILE) as f:
+        return json.load(f)
+
+
+def save_creds(c):
+    os.makedirs(STATE_DIR, exist_ok=True)
+    with open(CRED_FILE, "w") as f:
+        json.dump(c, f, indent=1)
+    os.chmod(CRED_FILE, 0o600)
+
+
+def parse_curl(text):
+    """Pull cookie, csrf token, context uuid and lyraId out of a Copy-as-cURL blob."""
+    def grab(pat):
+        m = re.search(pat, text, re.I)
+        return m.group(1).strip() if m else None
+
+    cookie = grab(r"-b\s+'([^']+)'") or grab(r"--cookie\s+'([^']+)'") \
+        or grab(r"-H\s+'cookie:\s*([^']+)'")
+    csrf = grab(r"-H\s+'x-csrf-token:\s*([^']+)'")
+    ctx = grab(r"-H\s+'x-context-uuid:\s*([^']+)'")
+    lyra_id = grab(r"/services/[^']*?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})")
+    if not lyra_id and cookie:
+        lyra_id = grab(r"lyra_id%22%3A%22([0-9a-f-]{36})")
+    if not cookie:
+        die("could not find a Cookie in that cURL. Copy as cURL (bash), not fetch.")
+    if not csrf:
+        die("could not find x-csrf-token header in that cURL.")
+    if not lyra_id:
+        die("could not determine your lyraId. Copy a cURL from a /services/ URL "
+            "that contains your user UUID.")
+    return {"cookie": cookie, "csrf": csrf, "context_uuid": ctx or "", "lyra_id": lyra_id}
+
+
+# ---------------------------------------------------------------------- http
+
+RETRIES = 3
+BACKOFF = 2.0
+
+
+def request(path, method="GET", body=None, timeout=120, retries=RETRIES):
+    """Call the API. Retries 5xx and timeouts -- the large therapist query
+    (120+ providers) intermittently 504s at the gateway."""
+    c = load_creds()
+    url = path if path.startswith("http") else f"{BASE}{path}"
+    headers = {
+        "accept": "application/json, text/plain, */*",
+        "content-type": "application/json",
+        "x-csrf-token": c["csrf"],
+        "x-lyra-locale": "en-US",
+        "origin": BASE,
+        "referer": f"{BASE}/secure/index/search-care",
+        "user-agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"),
+        "cookie": c["cookie"],
+    }
+    if c.get("context_uuid"):
+        headers["x-context-uuid"] = c["context_uuid"]
+    data = json.dumps(body).encode() if body is not None else None
+
+    last = None
+    for attempt in range(1, retries + 1):
+        req = urllib.request.Request(url, data=data, method=method, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                raw = r.read().decode()
+            return json.loads(raw) if raw.strip() else None
+        except urllib.error.HTTPError as e:
+            # 401/403 mean the session died -- retrying cannot help.
+            if e.code in (401, 403):
+                die("session expired. Re-copy a cURL and run: pbpaste | lyra login")
+            if e.code < 500:
+                die(f"HTTP {e.code} on {path}: {e.read()[:200].decode(errors='replace')}")
+            last = f"HTTP {e.code}"
+        except (urllib.error.URLError, TimeoutError) as e:
+            last = f"network error: {getattr(e, 'reason', e)}"
+        if attempt < retries:
+            wait = BACKOFF ** attempt
+            print(f"lyra: {last} on {path} -- retry {attempt}/{retries - 1} in {wait:.0f}s",
+                  file=sys.stderr)
+            time.sleep(wait)
+    die(f"{last} on {path} after {retries} attempts")
+
+
+def resolve_location(name):
+    if not name:
+        name = DEFAULT_LOC
+    key = name.strip().lower()
+    if key in LOCATIONS:
+        return LOCATIONS[key]
+    die(f"unknown location {name!r}. Known: {', '.join(sorted(LOCATIONS))}")
+
+
+def provider_search(pool, location=None, max_cnt=300, session_format=None, age=None):
+    """Query /provider/tx/{id}/direct. Returns the providersInfo list."""
+    if pool not in POOLS:
+        die(f"pool must be one of: {', '.join(POOLS)}")
+    cfg = POOLS[pool]
+    c = load_creds()
+    age = age or c.get("age") or DEFAULT_AGE
+    loc, loc_text, state = resolve_location(location)
+    sr = {
+        "lyraId": c["lyra_id"],
+        "location": loc, "locationText": loc_text, "locationState": state,
+        "locationCountry": "United States",
+        "onsite": False, "matchFor": "self", "isUserInternational": False,
+        "maxCnt": max_cnt,
+        "blendedCareProgramId": cfg["bcp"],
+        "treatmentPreference": cfg["treatmentPreference"],
+        "treatmentNaive": cfg["treatmentPreference"],
+        "providerSearchPreferences": None,
+        "age": age,
+        "sessionFormat": {"All": [session_format]} if session_format else None,
+        "clientele": "Individual",
+        "treatment": cfg["treatment"],
+        "partner": cfg["partner"],
+        "offering": "Default",
+        "directLinkIntent": "DIRECT_LINK_CONCURRENT_CARE_REFERRAL",
+    }
+    d = request(f"/services/v1/provider/tx/{c['lyra_id']}/direct",
+                method="POST", body={"searchRequest": sr})
+    return ((d or {}).get("providerResults") or {}).get("providersInfo") or []
+
+
+# --------------------------------------------------------------- formatting
+
+def summarize(p):
+    lic = p.get("license_info") or []
+    return {
+        "name": p.get("display_name"),
+        "type": p.get("lyra_type"),
+        "credentials": p.get("credentials"),
+        "years": p.get("years_of_experience"),
+        "licensed_states": sorted({s.get("state") for s in lic if s.get("state")}) or None,
+        "available": p.get("is_available"),
+        "capacity": p.get("providerCapacity"),
+        "conditions": p.get("conditions"),
+        "treatments": p.get("treatments"),
+        "id": p.get("lyra_id"),
+    }
+
+
+def render_table(ps):
+    if not ps:
+        print("(no providers)")
+        return
+    for p in ps:
+        lic = sorted({s.get("state") for s in (p.get("license_info") or []) if s.get("state")})
+        cred = (p.get("credentials") or [""])[0]
+        flag = "" if p.get("is_available") else "  [unavailable]"
+        print(f"{p.get('display_name','?')[:30]:32} {p.get('lyra_type',''):14} "
+              f"{p.get('years_of_experience',''):12} {cred[:44]:46}"
+              f"{','.join(lic) if lic else '-':10}{flag}")
+    print(f"\n{len(ps)} provider(s)")
+
+
+def cache_write(ps, **meta):
+    """Persist a search with the parameters that produced it.
+
+    Provenance is not decoration. Provider rosters churn hard -- the coach pool
+    went from 103 to 19 in thirteen months -- so a list of names with no fetch
+    time and no params is indistinguishable from a stale archive, and reading
+    one as if it were current produces confidently wrong answers.
+    """
+    os.makedirs(STATE_DIR, exist_ok=True)
+    payload = {
+        "fetched_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+        **meta,
+        "count": len(ps),
+        "providers": ps,
+    }
+    with open(CACHE_FILE, "w") as f:
+        json.dump(payload, f)
+
+
+def cache_read():
+    """Return (providers, meta). Tolerates the pre-provenance bare-list format."""
+    if not os.path.exists(CACHE_FILE):
+        die("no cached search. Run: lyra search coach|therapist")
+    with open(CACHE_FILE) as f:
+        d = json.load(f)
+    if isinstance(d, list):  # legacy cache, provenance unknown
+        return d, {"fetched_at": None}
+    return d.get("providers") or [], {k: v for k, v in d.items() if k != "providers"}
+
+
+def provenance(meta, stream=sys.stdout):
+    """One-line header naming when the cached data was fetched and how."""
+    when = meta.get("fetched_at")
+    if not when:
+        print("# cached search: provenance unknown (legacy cache) -- re-run "
+              "`lyra search` to be sure this is current", file=stream)
+        return
+    bits = [f"pool={meta['pool']}"] if meta.get("pool") else []
+    for k in ("location", "max", "session_format", "age", "sweep"):
+        if meta.get(k) not in (None, False):
+            bits.append(f"{k}={meta[k]}")
+    age_s = ""
+    try:
+        delta = datetime.datetime.now().astimezone() - datetime.datetime.fromisoformat(when)
+        mins = int(delta.total_seconds() // 60)
+        age_s = f"  ({mins}m ago)" if mins < 1440 else f"  ({mins // 1440}d ago)"
+    except ValueError:
+        pass
+    print(f"# from search at {when}{age_s}  {' '.join(bits)}  n={meta.get('count','?')}",
+          file=stream)
+
+
+def bio_of(p):
+    return " ".join(filter(None, [p.get("summary"), p.get("bio_summary")]))
+
+
+# ---------------------------------------------------------------- commands
+
+def cmd_login(args):
+    text = open(args.file).read() if args.file else sys.stdin.read()
+    if not text.strip():
+        die("no input. Try: pbpaste | lyra login")
+    creds = parse_curl(text)
+    save_creds(creds)
+    print(f"saved session for lyraId {creds['lyra_id']} -> {CRED_FILE}")
+
+
+def cmd_status(args):
+    c = load_creds()
+    try:
+        request("/services/unsecured/v1/utils/user-session-remaining-time")
+        state = "valid"
+    except SystemExit:
+        raise
+    print(f"lyraId:  {c['lyra_id']}")
+    print(f"session: {state}")
+    print(f"creds:   {CRED_FILE}")
+
+
+def cmd_search(args):
+    ps = provider_search(args.pool, args.location, args.max, args.session_format, args.age)
+    cache_write(ps, pool=args.pool, location=args.location or DEFAULT_LOC,
+                max=args.max, session_format=args.session_format,
+                age=args.age or load_creds().get("age") or DEFAULT_AGE)
+    if args.json:
+        out(ps if args.full else [summarize(p) for p in ps])
+    else:
+        render_table(ps)
+
+
+def cmd_sweep(args):
+    seen, order = {}, []
+    for name in LOCATIONS:
+        try:
+            ps = provider_search(args.pool, name, args.max)
+        except SystemExit:
+            raise
+        new = 0
+        for p in ps:
+            if p["lyra_id"] not in seen:
+                seen[p["lyra_id"]] = p
+                order.append(p)
+                new += 1
+        print(f"{LOCATIONS[name][1]:26} returned={len(ps):4} new={new:3} "
+              f"cumulative={len(seen)}", file=sys.stderr)
+        time.sleep(args.delay)
+    cache_write(order, pool=args.pool, sweep=True,
+                location=f"{len(LOCATIONS)} metros", max=args.max)
+    if args.json:
+        out([summarize(p) for p in order])
+    else:
+        render_table(order)
+
+
+def cmd_grep(args):
+    providers, meta = cache_read()
+    flags = re.I if args.ignore_case else 0
+    rx = re.compile(args.pattern, flags)
+    hits = []
+    for p in providers:
+        found = sorted({m.group(0).lower() for m in rx.finditer(bio_of(p))})
+        if found:
+            hits.append((len(found), p, found))
+    hits.sort(key=lambda h: -h[0])
+    if args.json:
+        out({**meta, "pattern": args.pattern,
+             "matches": [{**summarize(p), "matched": f} for _, p, f in hits]})
+        return
+    provenance(meta)
+    for n, p, found in hits:
+        print(f"{n:3} {p.get('display_name','?')[:28]:30} {p.get('lyra_type',''):14} "
+              f"{p.get('years_of_experience',''):12} {found}")
+    print(f"\n{len(hits)} of {len(providers)} provider(s) matched")
+
+
+def cmd_rank(args):
+    terms = [t.strip() for t in args.terms.split(",") if t.strip()]
+    if not terms:
+        die("--terms requires a comma-separated list")
+    rx = {t: re.compile(rf"\b{re.escape(t)}\w*", re.I) for t in terms}
+    YEARS = {"< 5 years": 1, "5-10 years": 2, "10-15 years": 3,
+             "15-20 years": 4, "> 20 years": 5}
+    providers, meta = cache_read()
+    rows = []
+    for p in providers:
+        bio = bio_of(p)
+        matched = [t for t, r in rx.items() if r.search(bio)]
+        score = len(matched) * 2 + YEARS.get(p.get("years_of_experience"), 0)
+        if matched or args.all:
+            rows.append((score, p, matched))
+    rows.sort(key=lambda r: -r[0])
+    rows = rows[:args.limit]
+    if args.json:
+        out({**meta, "terms": terms,
+             "ranked": [{**summarize(p), "score": s, "matched": m} for s, p, m in rows]})
+        return
+    provenance(meta)
+    for s, p, m in rows:
+        print(f"{s:3} {p.get('display_name','?')[:28]:30} "
+              f"{p.get('years_of_experience',''):12} "
+              f"avail={str(p.get('is_available')):5} {m}")
+
+
+def cmd_show(args):
+    providers, meta = cache_read()
+    needle = args.name.lower()
+    for p in providers:
+        if needle in (p.get("display_name") or "").lower() or needle == p.get("lyra_id"):
+            if args.full:
+                out(p)
+            else:
+                provenance(meta, stream=sys.stderr)
+                out({**summarize(p), "summary": p.get("summary"),
+                     "bio_summary": p.get("bio_summary"),
+                     "education": p.get("education"),
+                     "certifications": p.get("certifications"),
+                     "modalities": p.get("modalities"),
+                     "will_not_treat": p.get("negative_conditions")})
+            return
+    die(f"no provider matching {args.name!r} in the cached search")
+
+
+def cmd_episodes(args):
+    c = load_creds()
+    d = request(f"/services/lt/v1/patient/{c['lyra_id']}/episodes")
+    items = d if isinstance(d, list) else [d]
+    if args.json:
+        out(items)
+        return
+    for e in items:
+        print(f"{e.get('program_name','?'):22} {e.get('state','?'):18} "
+              f"{(e.get('start_date') or '')[:10]} -> {(e.get('end_date') or '')[:10]}  "
+              f"provider={e.get('provider_id')}")
+
+
+def cmd_providers(args):
+    c = load_creds()
+    d = request(f"/services/v1/patient/{c['lyra_id']}/providers")
+    if args.json or not isinstance(d, list):
+        out(d)
+        return
+    for e in d:
+        p = e.get("provider", e)
+        print(f"{p.get('display_name','?'):26} {p.get('lyra_type',''):14} "
+              f"{(p.get('credentials') or [''])[0][:44]:46} "
+              f"appointments={len(e.get('appointments') or [])}")
+
+
+def cmd_benefits(args):
+    c = load_creds()
+    out(request(f"/services/v1/user/{c['lyra_id']}/benefits"))
+
+
+def cmd_sessions(args):
+    d = request("/services/v1/patient/user") or {}
+    hist = d.get("sessionHistory") or []
+    if args.json:
+        out({"used": d.get("usedSessionCount"),
+             "by_program": d.get("usedSessionCountByProgram"),
+             "history": hist})
+        return
+    print(f"sessions used: {d.get('usedSessionCount')}")
+    if d.get("usedSessionCountByProgram"):
+        print(f"by program:    {d['usedSessionCountByProgram']}")
+    for h in hist:
+        print(f"  {h.get('visitDate','?')}  {h.get('attendance','?')}")
+
+
+def build_parser():
+    ap = argparse.ArgumentParser(
+        prog="lyra", description="Lyra Health provider-network CLI",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Coaches are unlicensed and location-independent; "
+               "therapists are state-licensed and location-filtered.")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    p = sub.add_parser("login", help="import session from a Copy-as-cURL")
+    p.add_argument("-f", "--file", help="read cURL from file instead of stdin")
+    p.set_defaults(func=cmd_login)
+
+    p = sub.add_parser("status", help="check session validity")
+    p.set_defaults(func=cmd_status)
+
+    p = sub.add_parser("search", help="search a provider pool")
+    p.add_argument("pool", choices=sorted(POOLS))
+    p.add_argument("--location", help=f"default: {DEFAULT_LOC}")
+    p.add_argument("--max", type=int, default=300, help="maxCnt (server caps it)")
+    p.add_argument("--session-format", choices=["Video", "InPerson", "LiveMessaging"])
+    p.add_argument("--age", type=int, help=f"required by the API, inert (default {DEFAULT_AGE})")
+    p.add_argument("--json", action="store_true")
+    p.add_argument("--full", action="store_true", help="with --json, emit raw records")
+    p.set_defaults(func=cmd_search)
+
+    p = sub.add_parser("sweep", help="query every known location, union results")
+    p.add_argument("pool", choices=sorted(POOLS))
+    p.add_argument("--max", type=int, default=300)
+    p.add_argument("--delay", type=float, default=0.5)
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_sweep)
+
+    p = sub.add_parser("grep", help="regex-search bios of the last search")
+    p.add_argument("pattern")
+    p.add_argument("-i", "--ignore-case", action="store_true")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_grep)
+
+    p = sub.add_parser("rank", help="rank last search by keyword hits")
+    p.add_argument("--terms", required=True, help="comma-separated keywords")
+    p.add_argument("--limit", type=int, default=20)
+    p.add_argument("--all", action="store_true", help="include zero-match providers")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_rank)
+
+    p = sub.add_parser("show", help="full record for one provider")
+    p.add_argument("name")
+    p.add_argument("--full", action="store_true")
+    p.set_defaults(func=cmd_show)
+
+    p = sub.add_parser("episodes", help="your care episodes")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_episodes)
+
+    p = sub.add_parser("providers", help="your assigned providers")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_providers)
+
+    p = sub.add_parser("benefits", help="employer benefit catalog")
+    p.set_defaults(func=cmd_benefits)
+
+    p = sub.add_parser("sessions", help="sessions used + visit history")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_sessions)
+    return ap
+
+
+def main():
+    args = build_parser().parse_args()
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()
