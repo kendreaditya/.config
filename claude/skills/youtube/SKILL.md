@@ -92,18 +92,18 @@ yt-dlp --dump-json --no-download --no-warnings "URL" 2>/dev/null \
   | jq '{manual: (.subtitles | keys), auto: (.automatic_captions | keys)}'
 ```
 
-VTT files saved to `/tmp/VIDEO_ID.LANG.vtt`. Clean with `vtt2txt` (from the `clean` skill):
+VTT files saved to `/tmp/VIDEO_ID.LANG.vtt`. Clean with `cleansubs` (from the `clean` skill):
 
 ```bash
 # Download subs + clean to plain text
 yt-dlp --write-auto-sub --sub-lang en --sub-format vtt --skip-download \
-  -o "/tmp/%(id)s.%(ext)s" "URL" && vtt2txt /tmp/VIDEO_ID.en.vtt
+  -o "/tmp/%(id)s.%(ext)s" "URL" && cleansubs /tmp/VIDEO_ID.en.vtt
 
 # Download subs + clean to markdown with metadata
-vtt2txt /tmp/VIDEO_ID.en.vtt --md --title "Video Title" --id "VIDEO_ID" -o transcript.md
+cleansubs /tmp/VIDEO_ID.en.vtt --md --title "Video Title" --id "VIDEO_ID" -o transcript.md
 
 # Batch: multiple VTTs to one markdown
-vtt2txt /tmp/*.vtt --md --heading "Research" -o combined.md
+cleansubs /tmp/*.vtt --md --heading "Research" -o combined.md
 ```
 
 ## Key fields reference
