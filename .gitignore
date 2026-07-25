@@ -18,6 +18,7 @@ zed/conversations/
 
 # Session tokens (do not commit)
 twscrape/accounts.db
+scripts/lyra.d/
 github-copilot/
 
 # Claude Code - ignore runtime/state, track behavioral files only
