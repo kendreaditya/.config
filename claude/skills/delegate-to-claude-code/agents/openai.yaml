@@ -1,0 +1,4 @@
+interface:
+  display_name: "Delegate to Claude Code"
+  short_description: "Run and supervise Claude Code from Codex"
+  default_prompt: "Use $delegate-to-claude-code to delegate this bounded task to Claude Code and independently verify the result."
