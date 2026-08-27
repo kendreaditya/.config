@@ -10,7 +10,46 @@ repo's real on-disk layout. Harness-specific notes are called out inline.
 
 ## What This Repo Is
 
-Personal dotfiles and agent-skill configuration for macOS. Two main concerns: (1) `claude/` — behavioral files (skills, commands, agents, settings), version-controlled and symlinked into the harness config dirs (`~/.claude/`, `~/.codex/`); (2) macOS/Linux/Windows environment bootstrap via `setup-macos.sh`.
+Personal dotfiles and agent configuration for macOS. Two main concerns:
+(1) `agents/` — behavioral files shared across AI harnesses, symlinked into each
+harness's config dir; (2) macOS/Linux/Windows environment bootstrap via
+`setup-macos.sh`.
+
+## agents/ layout
+
+```
+agents/
+  skills/            96 skills, harness-agnostic (SKILL.md is a de-facto standard)
+  commands/          slash commands / prompts
+  memory/            long-term notes (git-crypt encrypted)
+  personas/          role prompts, one .md per agent type
+  harness/
+    claude/          settings.json, CLAUDE.md, output-styles/, mcp-servers.json
+    codex/           AGENTS.md, agents/*.toml
+  link.sh            wires all of the above into ~/.claude and ~/.codex
+```
+
+Shared dirs are symlinked into every harness; `harness/<name>/` only into that
+harness. Run `agents/link.sh` after changing the layout — it is idempotent and
+refuses to overwrite real files. `--dry-run` previews.
+
+Two naming details worth knowing: Claude calls role prompts "agents", so
+`~/.claude/agents` points at `agents/personas/`. Codex namespaces user skills, so
+they land at `~/.codex/skills/user` and its generated `.system/` dir survives.
+
+## Health checks
+
+Every CLI in `scripts/` implements a `smoke` subcommand (exit 0 healthy, 3 needs
+auth, other = broken). `scripts/doctor` discovers them and runs them all, so it
+never needs to know how any individual tool works:
+
+```bash
+doctor                # everything
+doctor <name>...      # specific CLIs
+doctor --list         # what's discovered, and which support smoke
+```
+
+When adding a CLI, add a `smoke` handler to it — do not teach `doctor` about it.
 
 ## Scripts Architecture
 
@@ -49,7 +88,7 @@ The shared venv at `~/.config/config-venv/` is created by `setup-macos.sh`. Scri
 
 ## Claude Code Config
 
-`~/.config/claude/` stores Claude Code's behavioral files, version-controlled here and symlinked into `~/.claude/`:
+`~/.config/agents/` stores Claude Code's behavioral files, version-controlled here and symlinked into `~/.claude/`:
 
 | Path | Purpose |
 |------|---------|
@@ -61,17 +100,17 @@ The shared venv at `~/.config/config-venv/` is created by `setup-macos.sh`. Scri
 | `claude/mcp-servers.json` | MCP server definitions (tracked source of truth) |
 | `claude/docs/` | Local Claude Code docs (generated, gitignored — run `sync-docs` to regenerate) |
 
-Symlinks: `~/.claude/{skills,commands,settings.json}` → `~/.config/claude/{skills,commands,settings.json}`
+Symlinks: `~/.claude/{skills,commands,settings.json}` → `~/.config/agents/{skills,commands,settings.json}`
 
 `~/.claude.json` itself is **not** tracked — it mixes MCP config with mutable session state (OAuth tokens, per-project history, counters). `setup-macos.sh` re-registers servers from `mcp-servers.json` via `claude mcp add-json ... -s user` on every run.
 
 ### Adding or editing an MCP server
-1. Edit `~/.config/claude/mcp-servers.json` (keyed by server name).
+1. Edit `~/.config/agents/harness/claude/mcp-servers.json` (keyed by server name).
 2. Apply immediately without re-running the full setup:
    ```bash
    name=myserver   # matches key in mcp-servers.json
    claude mcp remove "$name" -s user 2>/dev/null
-   claude mcp add-json "$name" "$(jq -c --arg n "$name" '.[$n]' ~/.config/claude/mcp-servers.json)" -s user
+   claude mcp add-json "$name" "$(jq -c --arg n "$name" '.[$n]' ~/.config/agents/harness/claude/mcp-servers.json)" -s user
    ```
    Or just re-run the MCP sync block in `setup-macos.sh`.
 

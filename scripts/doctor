@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# doctor — health-check every CLI in ~/.config/scripts.
+#
+# Design: doctor knows NOTHING about how to test any individual CLI. Each CLI
+# owns its own check and exposes it as a `smoke` subcommand:
+#
+#     <cli> smoke     -> exit 0 healthy, non-zero broken, 3 = needs auth
+#
+# That keeps the knowledge next to the code it verifies, so adding a CLI never
+# means editing doctor. CLIs without a `smoke` subcommand are reported as
+# untested rather than silently passing.
+#
+# Usage:
+#   doctor              # check everything
+#   doctor <name>...    # check specific CLIs
+#   doctor --list       # list discovered CLIs and whether they support smoke
+set -uo pipefail
+
+SCRIPTS="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
+TIMEOUT="${DOCTOR_TIMEOUT:-20}"
+
+# Never recurse into ourselves, and skip non-CLI helpers / support dirs.
+SKIP='doctor|_utils.py|scripts|.*\.d$|wallpaper|.*\.py$|.*\.sh$|test-.*'
+
+bold=$'\033[1m'; grn=$'\033[32m'; red=$'\033[31m'; yel=$'\033[33m'; dim=$'\033[2m'; rst=$'\033[0m'
+
+discover() {
+  for f in "$SCRIPTS"/*; do
+    local n; n="$(basename "$f")"
+    [[ "$n" =~ ^($SKIP)$ ]] && continue
+    [ -x "$f" ] || [ -L "$f" ] || continue
+    [ -d "$f" ] && continue
+    echo "$n"
+  done
+}
+
+has_smoke() {
+  # Cheap static check: does the file mention a 'smoke' subcommand? Follows
+  # symlinks into the skill dirs. Avoids executing anything to find out.
+  grep -qi "['\"]smoke['\"]\|^smoke)\|smoke)" "$(readlink -f "$SCRIPTS/$1" 2>/dev/null || echo "$SCRIPTS/$1")" 2>/dev/null
+}
+
+if [ "${1:-}" = "--list" ]; then
+  printf '%s\n' "${bold}discovered CLIs${rst}"
+  while read -r n; do
+    if has_smoke "$n"; then printf '  %-18s %ssmoke%s\n' "$n" "$grn" "$rst"
+    else printf '  %-18s %sno smoke%s\n' "$n" "$dim" "$rst"; fi
+  done < <(discover)
+  exit 0
+fi
+
+targets=()
+if [ "$#" -gt 0 ]; then targets=("$@"); else while read -r n; do targets+=("$n"); done < <(discover); fi
+
+pass=0; fail=0; auth=0; untested=0
+failed_names=()
+
+for n in "${targets[@]}"; do
+  cli="$SCRIPTS/$n"
+  [ -e "$cli" ] || { printf '  %-18s %sno such CLI%s\n' "$n" "$red" "$rst"; fail=$((fail+1)); failed_names+=("$n"); continue; }
+
+  if ! has_smoke "$n"; then
+    printf '  %-18s %s— no smoke subcommand%s\n' "$n" "$dim" "$rst"
+    untested=$((untested+1)); continue
+  fi
+
+  out="$(timeout "$TIMEOUT" "$cli" smoke 2>&1)"; rc=$?
+  case "$rc" in
+    0) printf '  %-18s %sok%s\n' "$n" "$grn" "$rst"; pass=$((pass+1)) ;;
+    3) printf '  %-18s %sneeds auth%s %s\n' "$n" "$yel" "$rst" "${dim}$(head -1 <<<"$out" | cut -c1-60)${rst}"; auth=$((auth+1)) ;;
+    124) printf '  %-18s %stimeout%s (>${TIMEOUT}s)\n' "$n" "$red" "$rst"; fail=$((fail+1)); failed_names+=("$n") ;;
+    *) printf '  %-18s %sFAIL%s %s\n' "$n" "$red" "$rst" "${dim}$(head -1 <<<"$out" | cut -c1-60)${rst}"; fail=$((fail+1)); failed_names+=("$n") ;;
+  esac
+done
+
+echo
+printf '%s%d ok%s' "$grn" "$pass" "$rst"
+[ "$auth" -gt 0 ]     && printf ', %s%d need auth%s' "$yel" "$auth" "$rst"
+[ "$untested" -gt 0 ] && printf ', %s%d untested%s' "$dim" "$untested" "$rst"
+[ "$fail" -gt 0 ]     && printf ', %s%d failed%s' "$red" "$fail" "$rst"
+echo
+if [ "$fail" -gt 0 ]; then
+  printf 'rerun a single check with: %sdoctor %s%s\n' "$bold" "${failed_names[0]}" "$rst"
+  exit 1
+fi
