@@ -5,7 +5,7 @@ description: Search, list, and fetch the user's personal AI chat history across 
 
 # parlai
 
-Local CLI wrapping the user's personal AI chat history across 8 providers. Lives at `~/workspace/parlai`, installed on PATH as `parlai`.
+Local CLI wrapping the user's personal AI chat history across 8 providers. Lives at `~/.config/parlai` (a git submodule), installed on PATH as `parlai`.
 
 ## Providers
 
@@ -84,5 +84,5 @@ If `parlai status` shows ✗ for a provider, run `parlai login <provider>` for a
 ## Notes
 
 - No persistence. No DB, no cache file. Only `~/.parlai/credentials.json` (manual cookie fallback) is ever written.
-- Source repo: `~/workspace/parlai`. To rebuild after changes: `cd ~/workspace/parlai && uv sync`.
+- Source repo: `~/.config/parlai`, a git submodule pinned to a commit — checkout starts detached. To pull upstream changes and bump the pin: `cd ~/.config/parlai && git checkout main && git pull && cd ~/.config && git add parlai && git commit -m "parlai: bump to $(git -C parlai rev-parse --short HEAD)"`.
 - Local providers (`claude-code`, `codex-cli`, `codex-desktop`) search by scanning their JSONL files directly (case-insensitive substring).
