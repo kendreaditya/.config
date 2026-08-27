@@ -134,8 +134,8 @@ at commit time — keep `core.hooksPath=.githooks` configured
 - Cross-platform `setup-*.sh` logic
 
 **Keep on the device branch only:**
-- `claude/settings.json` when it carries a non-public API base URL, telemetry
-  endpoint, or org plugin list
+- `agents/harness/claude/settings.json` when it carries a non-public API base
+  URL, telemetry endpoint, or org plugin list
 - Work shell integration (e.g. the `dx env` block in `.zshrc`)
 - `bunnylol/config.toml` while it is org-specific shortcuts
 - Anything naming internal infrastructure
