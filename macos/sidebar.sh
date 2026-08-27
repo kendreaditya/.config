@@ -1,5 +1,5 @@
 #!/bin/bash
-# .macos/sidebar.sh — Finder sidebar favorites via LSSharedFileList API
+# macos/sidebar.sh — Finder sidebar favorites via LSSharedFileList API
 # Compiles a small Objective-C program inline using clang (no mysides dependency).
 # WARNING: This resets the entire Finder Favorites sidebar section.
 # Run standalone or called from setup-macos.sh (set MACOS_SETUP_RUNNING=1 to skip killall)
