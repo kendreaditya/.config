@@ -1,0 +1,81 @@
+[agents]
+
+[agents.third_party]
+
+[agents.third_party.per_agent]
+Claude = { tabmenu = true, titlebar = true, toolbar = true }
+Codex = { tabmenu = true, titlebar = true, toolbar = true }
+
+[agents.byop]
+last_used_model_id = "byop:0c4c533e-04af-4124-8b3a-781029ff57b7:gpt-5.6-sol"
+
+[agents.warp_agent]
+providers = [
+  {
+    api_type = "open_ai_resp",
+    base_url = "https://cybernetic-swe-ai-services.openai.azure.com/openai/v1/",
+    id = "0c4c533e-04af-4124-8b3a-781029ff57b7",
+    kind = "open_ai_compatible",
+    models = [
+      { context_window = 1050000, id = "gpt-5.6-luna", max_output_tokens = 128000, name = "GPT-5.6 Luna" },
+      { context_window = 1050000, id = "gpt-5.6-sol", max_output_tokens = 128000, name = "GPT-5.6 Sol" },
+      {
+        context_window = 1050000,
+        id = "gpt-5.6-terra",
+        max_output_tokens = 128000,
+        name = "GPT-5.6 Terra",
+      },
+    ],
+    name = "Azure",
+  },
+]
+
+[agents.warp_agent.input]
+ai_auto_detection_enabled = true
+
+[agents.voice]
+voice_input_toggle_key = "fn"
+
+[agents.profiles]
+agent_mode_coding_permissions = "always_allow_reading"
+
+[notifications]
+toast_duration_secs = 8
+
+[notifications.preferences]
+is_agent_task_completed_enabled = true
+is_long_running_enabled = true
+is_needs_attention_enabled = true
+is_password_prompt_enabled = true
+long_running_threshold = 30
+mode = "dismissed"
+play_notification_sound = true
+
+[text_editing]
+vim_mode_enabled = true
+
+[appearance]
+
+[appearance.text]
+markdown_heading_h1_scale = 2.0
+markdown_heading_h2_scale = 1.5
+markdown_heading_h3_scale = 1.1699999570846558
+markdown_heading_h4_scale = 1.0
+markdown_heading_h5_scale = 0.8299999833106995
+markdown_heading_h6_scale = 0.75
+notebook_font_size = 14.0
+ui_font_size = 12.0
+font_size = 13.0
+
+[appearance.themes]
+theme = "vs_code_2026_dark"
+
+[terminal]
+show_terminal_zero_state_block = false
+
+# Provider created via Zap's Settings > AI UI, so the API key is bound in the
+# macOS Keychain against the generated id (5ceb65ce-...). Key is NOT in this file.
+#
+# extra_headers was written by the UI as [["", ""]] — an empty header name/value
+# pair. That made Rust's HTTP builder reject the request before sending it
+# ("Cause: builder error"), so it is set to [] here. Do not re-add an empty pair.

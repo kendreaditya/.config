@@ -34,9 +34,10 @@ agents/*
 !agents/harness/
 agents/docs/
 
-# Zap terminal — ~/.zap is symlinked here (see setup-macos.sh). Track settings.toml
-# only: Zap also drops remote-server/, a downloaded Linux binary it installs over SSH,
-# plus other machine-local runtime state. Same allowlist shape as agents/ above.
+# Zap terminal — ~/.zap is symlinked here (see setup-macos.sh). Track
+# settings.toml and keybindings.yaml only: Zap also drops remote-server/, a
+# downloaded Linux binary it installs over SSH, plus other machine-local
+# runtime state. Same allowlist shape as agents/ above.
 zap/*
 !zap/settings.toml
 !zap/keybindings.yaml
@@ -131,6 +132,9 @@ tailscale-official-proxy/
 # children (see bunnylol/README for the split).
 bunnylol/*
 !bunnylol/config.toml
-bunnylol/config.work.toml
-bunnylol/config.personal.toml
-bunnylol/config.local.toml
+
+# opencode — only opencode.jsonc is meaningful config; the rest (node_modules,
+# lockfiles, its own nested .gitignore) is npm/bun scaffolding it manages
+# itself. Same allowlist shape as agents/ and zap/ above.
+opencode/*
+!opencode/opencode.jsonc
