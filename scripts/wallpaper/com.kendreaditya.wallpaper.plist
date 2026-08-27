@@ -8,7 +8,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/usr/bin/python3</string>
-        <string>/Users/kendreaditya/.config/scripts/wallpaper/wallpaper.py</string>
+        <string>/Users/akendre/.config/scripts/wallpaper/wallpaper.py</string>
     </array>
 
     <key>StartCalendarInterval</key>

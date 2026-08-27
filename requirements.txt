@@ -1,10 +1,48 @@
+# Shared dependency set for ~/.config/config-venv.
+#
+# Managed with uv (see setup-macos.sh):
+#   uv pip install --python config-venv/bin/python3 -r requirements.txt
+#
+# Scripts in scripts/ and claude/skills/*/scripts/ re-exec themselves under
+# config-venv via _utils.ensure_config_venv(), so everything imported by any of
+# them must be listed here.
+
+# --- CLI / output ---
 rich>=13.3.5
-requests>=2.31.0
 click>=8.1.0
-playwright>=1.40.0
-TikTokApi>=7.1.0
+typer>=0.12
+
+# --- HTTP / scraping ---
+requests>=2.31.0
 httpx>=0.27.0
-osxmetadata>=1.4.0
-pytest>=8.0
-flights>=0.8.2
+aiohttp>=3.9
+aiofiles>=23.0
+beautifulsoup4>=4.12
 lxml>=5.0.0
+markdownify>=0.13
+tldextract>=5.0
+
+# --- browser automation ---
+playwright>=1.40.0
+
+# --- data / finance ---
+yfinance>=0.2.40
+monarchmoney>=0.1.15          # scripts/mm (monarch-money skill)
+gql>=3.5                      # monarchmoney transport
+
+# --- tokenizing (shortn skill: hard dep, exits without it) ---
+tiktoken>=0.7
+
+# --- content / media ---
+TikTokApi>=7.1.0
+flights>=0.8.2
+
+# --- crypto / macOS integration ---
+pycryptodome>=3.20
+osxmetadata>=1.4.0;  sys_platform == "darwin"
+
+# --- yaml / config ---
+PyYAML>=6.0
+
+# --- testing ---
+pytest>=8.0

@@ -1,0 +1,242 @@
+---
+name: monarch-money
+description: "Monarch Money (mm) personal finance API. Query accounts, transactions, budgets, cashflow, recurring expenses, and net worth. Mutate transactions (create/update/delete), set budgets, and refresh accounts. Use when user asks about: Monarch Money, my budget, my transactions, my accounts, my spending, cashflow, net worth, recurring expenses, financial summary."
+---
+
+# Monarch Money
+
+All operations go through `mm.py` — a single CLI wrapping the `monarchmoneycommunity` Python library (community fork of `monarchmoney`; same `from monarchmoney import …` import path, actively maintained, includes the get_budgets GraphQL fix). Everything the skill needs lives inside this folder: scripts, state (session, rules), and docs. No external state directories.
+
+## Quick start
+
+```bash
+# Diagnose + auto-fix the environment (idempotent; safe to re-run anytime)
+mm.py doctor --fix
+
+# Most common workflow
+mm.py month-review                          # summary + anomaly flags (current month)
+mm.py untagged 2026-04-01 2026-04-30        # untagged expenses with live suggestions
+mm.py set-tags <id> social                  # tag by name or alias
+```
+
+Let `mm.py` = `~/.config/config-venv/bin/python3 ~/.config/agents/skills/monarch-money/scripts/mm.py`.
+
+## First-time setup
+
+**Email/password login is blocked by Cloudflare** — must use a browser session.
+
+**As of 2026, Monarch dropped Authorization-bearer-token auth** in favor of HttpOnly session cookies + CSRF token. The old `localStorage['persist:root'].user.token` is `null` and not usable. You must extract the live cookies via Chrome's "Copy as cURL".
+
+1. Open `https://app.monarch.com/dashboard` and log in.
+2. Open DevTools → **Network** tab → filter `Fetch/XHR` → refresh the page.
+3. Right-click any `graphql` request → **Copy** → **Copy as cURL** (bash).
+4. Pipe it into the skill:
+   ```bash
+   pbpaste | mm.py set-session
+   ```
+   This parses the `cookie:`, `x-csrftoken:`, and `device-uuid:` headers and writes `state/session.json` in the new shape:
+   ```json
+   {"cookie":"sessionid=...; csrftoken=...","csrftoken":"...","device_uuid":"..."}
+   ```
+5. Run `mm.py doctor --fix` — installs pinned deps, patches the library's BASE_URL, verifies the API, and seeds default tag rules.
+
+When the session expires (typically a few weeks), repeat steps 2–4. The `set-session` command is idempotent — it overwrites cleanly.
+
+### Auto-refresh via chrome-devtools MCP (preferred — no manual paste)
+
+If the chrome-devtools MCP is connected to the user's real Chrome AND a logged-in `app.monarch.com` tab is open, refresh the session yourself instead of asking the user to paste a cURL. This reads the live request headers over the DevTools protocol — including the HttpOnly `session_id` cookie that JS can't see — and never touches the macOS Keychain (decrypting Chrome's cookie store directly is off-limits).
+
+1. `list_pages` → confirm a logged-in `app.monarch.com` tab exists. (If Monarch itself logged the user out, stop — captured headers would be dead; the user must log back in first.)
+2. `navigate_page` type=reload on that tab to generate fresh requests.
+3. `list_network_requests` (resourceTypes: fetch, xhr) → find an `api.monarch.com/graphql` request.
+4. `get_network_request` reqid=<n> → read the `cookie`, `x-csrftoken`, and `device-uuid` **request** headers.
+5. Pipe them in as JSON (robust against cookie special-chars — preferred over synthesizing a cURL):
+   ```bash
+   echo '{"cookie":"<full cookie header>","csrftoken":"<x-csrftoken>","device_uuid":"<device-uuid>"}' \
+     | mm.py set-session --json
+   ```
+6. `mm.py doctor` to verify (`✅ API reachable`).
+
+`set-session` also still accepts a full `Copy as cURL` on stdin or argv (the `--json` flag just bypasses cURL parsing).
+
+### Legacy fallback (pre-2026 sessions)
+The loader still recognizes the old `{"token":"XXX"}` shape, but the API rejects those tokens — only kept for historical session files. New sessions must use the cookie shape.
+
+## User preferences (LOAD THIS FIRST)
+
+Before any analysis or mutation, read `user_preferences.md` — contains the user's budget structure, bucket ↔ vault ↔ tag mapping, categorization rules (IRA conversions, Meta Life@, flights, etc.), yield preferences, reporting style, and the draft-before-mutate workflow rule.
+
+## Tagging philosophy (IMPORTANT)
+
+Tags reflect the **intent** behind a transaction, not the category or merchant. The same merchant can map to different tags depending on *why* the money was spent. `Panera Bread` can be Essential (solo "need to eat"), Relationships (with friends), or Discretionary (treat).
+
+Never auto-tag a merchant uniformly across all transactions without checking intent. For ambiguous cases, ask the user. See `user_preferences.md` for user-specific tag definitions (tighter than MM defaults).
+
+Run `mm.py tags` to see all tags with their intent descriptions.
+
+## Commands
+
+### Setup / health
+```
+doctor [--fix]                      Diagnose env (install deps, patch BASE_URL, test API)
+```
+
+### Read
+```
+accounts                            All linked accounts
+holdings                            Brokerage securities
+account-history                     Daily balance history
+transactions [--all] [lim] [s] [e]  --all auto-paginates
+transaction <id>                    Single detail
+transaction-categories              Raw categories JSON
+transaction-tags                    Raw tags JSON
+tags                                Pretty-printed tags + intent
+budgets [year] [month]              Default: current month
+cashflow [start] [end]              By category/merchant
+cashflow-summary [year] [month]     Income/expense/savings
+recurring                           Upcoming recurring txns
+subscription                        Account status
+```
+
+### Analysis
+```
+month-review [yyyy-mm]              Summary + anomaly flags + untagged count
+untagged [--json] [start] [end]     Untagged expenses with live suggestions + plaidName + cluster detection
+                                    (computed from trailing 6 months — no cached file)
+analyze                             Confusion matrix → ~/Downloads/mm_tag_analysis.json
+match-email <txn_id>                Cross-ref Gmail for order contents (via gog)
+```
+
+### Write
+```
+refresh                             Trigger account sync + wait
+update-transaction <id> <field> <value>   fields: category_id, notes, reviewed, merchant
+set-tags <id> <tag>[,<tag>...]      Names, aliases (RAK, social, essential...), or IDs
+batch-set-tags                      Read <id> <tag>[,<tag>...] lines from stdin, apply all
+bulk-tag [--apply]                  Apply state/tag_rules.json (dry-run default)
+bulk-tag --seed-rules               Seed default rules file
+set-budget <cat_id> <amount> [y] [m]
+logout                              Clear session
+```
+
+## Files (all within this skill folder)
+
+| Path | Purpose |
+|---|---|
+| `scripts/mm.py` | Main CLI (includes `doctor` self-diagnose) |
+| `scripts/_mm_common.py` | Shared auth, pagination, tag resolution, doctor logic |
+| `user_preferences.md` | **User-specific** budget buckets, tag definitions, categorization rules, yield prefs, workflow. Load this before any analysis or mutation. Encrypted via git-crypt. |
+| `state/session.json` | Browser-grabbed auth token. `{"token": "..."}`. Gitignored. |
+| `state/tag_rules.json` | Deterministic merchant→tag rules for `bulk-tag`. User-editable. Gitignored. |
+| `state/config.json` | Optional. e.g. `{"gmail_account": "you@example.com"}`. Gitignored. |
+| `references/api.md` | `monarchmoney` library method signatures |
+
+Tag suggestions are **computed live** (no cached patterns file). `untagged` pulls the trailing 6 months of history each run and suggests the most-used tag per merchant. Slightly slower but always fresh.
+
+## Tag aliases
+
+Run `mm.py tags` for the live list. Aliases accepted by `set-tags`:
+
+| Alias | Canonical |
+|---|---|
+| `rak`, `charity`, `krishna` | Krishna Consciousness / Charity / RAK |
+| `social`, `relationships` | Relationships & Social Connection |
+| `discretionary` | Discretionary Spending |
+| `essential` | Essential Expenses |
+| `parental` | Parental Support |
+| `travel`, `experiences` | Experiences / Travel |
+| `health`, `wellness` | Health & Wellness |
+| `sub` | Subscription |
+| `transport` | Transportation |
+| `house`, `housing` | Housing |
+
+Tags also resolve by case-insensitive prefix as a fallback.
+
+## Common recipes
+
+**Net worth:**
+```bash
+mm.py accounts | jq '[.accounts[] | select(.includeInNetWorth) | .currentBalance] | add'
+```
+
+**Tag a birthday-gift Amazon order as RAK:**
+```bash
+mm.py set-tags 240968462327610974 rak
+```
+
+**Identify a mystery Amazon charge:**
+```bash
+mm.py match-email <txn_id>
+```
+
+**Review the month and spot anomalies:**
+```bash
+mm.py month-review                 # sign flips, 2σ deviations, large Uncategorized txns
+```
+
+**Batch-tag known merchants:**
+```bash
+# Edit state/tag_rules.json to add:
+# {"merchant": "Starbucks", "tag": "Discretionary Spending"}
+mm.py bulk-tag                     # dry-run preview
+mm.py bulk-tag --apply             # commit
+```
+
+## Trip tagging workflow
+
+When reviewing untagged transactions, temporal clusters often indicate a trip or event
+(conference, family visit, friend weekend). The `untagged` command detects these
+automatically and annotates them with `CLUSTER: N txns DateRange`.
+
+**Workflow:**
+
+1. **Identify the cluster:**
+   ```bash
+   mm.py untagged 2026-05-01 2026-05-31
+   ```
+   Look for rows annotated with `CLUSTER:`. The date range and merchant list
+   reveal the trip shape. The PLAID column helps identify mystery merchants
+   (e.g. "Apple Card, Cash, and Savings" → plaidName "Movement").
+
+2. **Determine trip purpose** — ask the user:
+   - Family visit → `parental` (or `parental` + `travel`)
+   - Friend trip → `social` + `travel`
+   - Solo adventure → `travel`
+   - Conference → `health` or `social` depending on intent
+
+3. **Tag the whole block at once:**
+   ```bash
+   # Option A: pipe from JSON output filtered by cluster
+   mm.py untagged --json 2026-05-01 2026-05-31 \
+     | jq -r '.transactions[] | select(.cluster != null and .cluster.id == 1) | "\(.id) social,travel"' \
+     | mm.py batch-set-tags
+
+   # Option B: manual list
+   printf '12345 social,travel\n12346 social,travel\n' | mm.py batch-set-tags
+   ```
+
+4. **Verify:** Re-run `mm.py untagged` — the cluster should be gone.
+
+**Batch-tag from a draft file:**
+```bash
+# Prepare a file with one <id> <tag> per line (# comments allowed)
+cat > /tmp/tags.txt <<EOF
+# May conference
+242719919225699636 health
+242719919225699640 health
+# Europe trip
+243582883560422748 social,travel
+243582883560422747 social,travel
+EOF
+mm.py batch-set-tags < /tmp/tags.txt
+```
+
+## Known issues
+
+- `set_transaction_tags` can fail on split transactions server-side (`TransportQueryError`). `bulk-tag` wraps in try/except and continues; individual `set-tags` prints error and exits 2.
+- Monarch's Plaid feed sometimes marks routine 401(k) contributions as `needsReview: true` with category `Uncategorized`. `month-review` will flag these — verify before re-categorizing. This skill was designed to catch exactly this kind of auto-miscategorization (a positive-valued "expense" flipping `sumExpense` sign).
+- Library uses `https://api.monarch.com` (not `api.monarchmoney.com`). `doctor --fix` patches the legacy package if needed (community fork already uses the right domain).
+- Python venv at `~/.config/config-venv/bin/python3` (shared across skills; Python 3.12). `monarchmoneycommunity` requires `gql>=4`; legacy `monarchmoney` requires `gql<4` — `doctor` detects which package is installed and applies the right pin.
+- If `doctor` detects the legacy `monarchmoney` package, it offers to swap to `monarchmoneycommunity` automatically (`doctor --fix`). The fork is a drop-in (same module name) and fixes upstream issues like the broken `get_budgets` query.
+
+See `references/api.md` for full Python method signatures.

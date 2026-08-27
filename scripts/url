@@ -1,6 +1,20 @@
 #!/bin/bash
 
 # Function to display usage information
+
+# --- doctor integration -------------------------------------------------------
+# `smoke` is a self-check contract consumed by scripts/doctor: exit 0 = healthy,
+# 3 = installed but unauthenticated, other = broken. Handled before any argument
+# validation so a missing required arg cannot mask a dependency problem.
+if [ "${1:-}" = "smoke" ]; then
+  _missing=""
+  if [ -n "$_missing" ]; then
+    echo "error: missing dependencies:$_missing" >&2
+    exit 1
+  fi
+  echo ok
+  exit 0
+fi
 function show_usage {
   echo "Usage: url <url> [filename]"
   echo "Creates a file that when opened will redirect to the specified URL"

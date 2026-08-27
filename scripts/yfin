@@ -1,4 +1,4 @@
-#!/usr/bin/env -S /Users/kendreaditya/workspace/.venv/bin/python
+#!/usr/bin/env python3
 """yfin — small Yahoo Finance CLI for ticker info + N-year stock returns."""
 
 import argparse
@@ -82,6 +82,27 @@ def main():
     args = parser.parse_args()
     {"info": cmd_info, "returns": cmd_returns, "all": cmd_all}[args.cmd](args)
 
+
+# --- doctor integration -------------------------------------------------------
+# `<cli> smoke` is a self-check contract consumed by scripts/doctor: exit 0 =
+# healthy, 3 = installed but unauthenticated, anything else = broken. Defined at
+# module level so it runs after imports resolve but before arg parsing, making a
+# successful smoke proof that all dependencies are importable.
+if len(sys.argv) > 1 and sys.argv[1] == "smoke":
+    try:
+        _probe = globals().get("_smoke_probe")
+        if callable(_probe):
+            _probe()
+        print("ok")
+        sys.exit(0)
+    except SystemExit:
+        raise
+    except Exception as _e:                      # noqa: BLE001
+        _m = str(_e).lower()
+        _auth = ("auth" in _m or "login" in _m or "session" in _m
+                 or "token" in _m or "credential" in _m or "cookie" in _m)
+        print(f"{'needs auth' if _auth else 'error'}: {_e}", file=sys.stderr)
+        sys.exit(3 if _auth else 1)
 
 if __name__ == "__main__":
     main()
