@@ -32,6 +32,8 @@ agents/*
 !agents/memory/
 !agents/personas/
 !agents/harness/
+!agents/link.sh
+!agents/link.ps1
 agents/docs/
 
 # Zap terminal — ~/.zap is symlinked here (see setup-macos.sh). Track
@@ -100,7 +102,7 @@ vercel-plugin/
 raycast-x/
 
 # macOS TCC permission snapshots (machine fingerprint - do not publish)
-.macos/tcc-permissions*.tsv
+macos/tcc-permissions*.tsv
 
 # ============================================================================
 # Machine-local credentials & runtime state (added 2026-08-26)
@@ -133,8 +135,5 @@ tailscale-official-proxy/
 bunnylol/*
 !bunnylol/config.toml
 
-# opencode — only opencode.jsonc is meaningful config; the rest (node_modules,
-# lockfiles, its own nested .gitignore) is npm/bun scaffolding it manages
-# itself. Same allowlist shape as agents/ and zap/ above.
-opencode/*
-!opencode/opencode.jsonc
+# opencode — unused, fully ignored (not tracked)
+opencode/

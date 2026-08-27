@@ -33,7 +33,7 @@ The bootstrap auto-detects the platform, installs prereqs (Xcode CLT / git), clo
 - **Apps** — VS Code, Chrome, Obsidian, Postman, Raycast/Ulauncher, Zoom, Tailscale
 - **Claude Code + Codex CLIs**, Oh My Zsh, npm globals, Python venv, vim-plug
 - **Fonts** from `assets/fonts/` → installed to the OS font directory
-- **System defaults** — dock/finder/sidebar (macOS), GNOME settings (Linux), PowerToys + PSReadLine (Windows)
+- **System defaults** — dock/finder/sidebar (macOS), GNOME settings (Linux), PowerToys installed + PSReadLine/oh-my-posh profile configured (Windows)
 - **Symlinks** — scripts to `~/.local/bin`, agent config (`agents/`) to `~/.claude/` and `~/.codex/`
 
 ## Working on this repo

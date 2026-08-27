@@ -1,5 +1,5 @@
 #!/bin/bash
-# .macos/finder.sh — Finder configuration
+# macos/finder.sh — Finder configuration
 # Run standalone or called from setup-macos.sh (set MACOS_SETUP_RUNNING=1 to skip killall)
 set -euo pipefail
 

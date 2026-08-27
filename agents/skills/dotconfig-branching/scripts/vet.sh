@@ -9,16 +9,21 @@ cd "$root" || exit 2
 findings=0
 report() { printf '\n[%s] %s\n' "$1" "$2"; }
 
-staged=$(git diff --cached --name-only --diff-filter=ACM)
+staged=$(git diff --cached --name-only --diff-filter=ACDMRT)
 if [ -z "$staged" ]; then echo "Nothing staged."; exit 0; fi
 
-# 1. gitignored files that were force-added
+# 1. gitignored files that were force-added. --no-index is required: once a
+# path is staged, plain `check-ignore` consults the index and stops reporting
+# it as ignored, so this check silently never fired without it. Skip deletions
+# (--diff-filter=ACMRT, no D): a deletion adds nothing, so it can't be a
+# force-add, and a path deleted in the same commit that newly ignores it is a
+# legitimate cleanup, not a smuggled file.
 while IFS= read -r f; do
   [ -z "$f" ] && continue
-  if git check-ignore -q "$f"; then
+  if git check-ignore -q --no-index "$f"; then
     report FAIL "gitignored file is staged (force-added?): $f"; findings=1
   fi
-done <<< "$staged"
+done < <(git diff --cached --name-only --diff-filter=ACMRT)
 
 # 2. absolute home paths — break portability and leak usernames
 if hits=$(git diff --cached -U0 | grep -nE '^\+.*/(Users|home)/[A-Za-z0-9_.-]+' | grep -vE '^[0-9]+:\+\+\+'); then

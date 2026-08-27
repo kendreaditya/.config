@@ -67,7 +67,7 @@ export HOMEBREW_NO_AUTO_UPDATE=1
 #   deno        NOT removed: it is a *required* dependency of yt-dlp (which
 #               agents/skills/clean/scripts/cleansubs.py uses), so brew reinstalls
 #               it automatically. Dropping it from this line changes nothing.
-#   duti        needed by .macos/defaults.sh to set the default browser. The old
+#   duti        needed by macos/defaults.sh to set the default browser. The old
 #               `defaults write ... LSHandlers -array-add` approach silently never
 #               worked, because lsd owns that array and overwrites it.
 brew install mas imagemagick cmake gcc ffmpeg gh wget curl python@3.12 \
@@ -267,20 +267,23 @@ fi
 # The venv itself stays a plain stdlib venv so non-uv tooling still understands it.
 uv pip install --python ~/.config/config-venv/bin/python3 -r ~/.config/requirements.txt
 
+# --- Git submodules: ws (workspace manager), parlai (AI chat history search) --
+# Both are plain git submodules pinned to a specific commit in .gitmodules; this
+# one call inits/clones every submodule the repo declares, so adding a new one
+# needs no bespoke clone logic here, just a .gitmodules entry.
+git -C ~/.config submodule update --init --recursive
+
 # --- Standalone CLI tools (isolated envs, not in config-venv) ------------------
 # These are end-user CLIs rather than libraries imported by our scripts, so they
 # get their own isolated environment via `uv tool` (the pipx model). Installing
 # them into config-venv would let their pins fight our scripts' pins.
 uv tool install --quiet subliminal || true   # movie-subs: subtitle fetching
 
-# --- External repos that skills depend on -------------------------------------
-# parlai: the `parlai` CLI backing agents/skills/parlai (AI chat history search).
-# SKILL.md expects it at ~/workspace/parlai and on PATH. Editable install so a
-# `git pull` there takes effect without reinstalling.
-if [ ! -d ~/workspace/parlai ]; then
-  git clone https://github.com/kendreaditya/parlai.git ~/workspace/parlai
-fi
-uv tool install --quiet --editable ~/workspace/parlai || true
+# parlai: the `parlai` CLI backing agents/skills/parlai (AI chat history
+# search). Editable install of the submodule checkout above, so `cd
+# ~/.config/parlai && git pull` (after `git checkout main` -- submodules start
+# detached) takes effect without reinstalling.
+uv tool install --quiet --editable ~/.config/parlai || true
 
 # fnm: shell integration. The brew line above installs the binary; without this
 # eval in .zshrc, `fnm` exists on PATH but doesn't manage $PATH or auto-switch
@@ -296,9 +299,8 @@ fi
 EOF
 fi
 
-# ws: workspace manager. Lives as a git submodule at ~/.config/ws; `ws init`
-# symlinks it into ~/.local/bin and seeds config.json. Idempotent.
-git -C ~/.config submodule update --init --recursive
+# ws: workspace manager. `ws init` symlinks it into ~/.local/bin and seeds
+# config.json. Idempotent.
 [ -x ~/.config/ws/ws ] && ~/.config/ws/ws init || true
 
 # gstack removed by request. It cloned github.com/garrytan/gstack into
@@ -410,7 +412,7 @@ fi
 
 # Apply macOS configuration
 echo "Applying macOS settings..."
-MACOS_DIR="$(dirname "$0")/.macos"
+MACOS_DIR="$(dirname "$0")/macos"
 chmod +x "$MACOS_DIR"/*.sh
 export MACOS_SETUP_RUNNING=1
 
