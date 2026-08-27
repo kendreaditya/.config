@@ -57,7 +57,7 @@ export HOMEBREW_NO_AUTO_UPDATE=1
 #   gemini-cli  deprecated 2026-06-18 (:unsupported), disabled 2026-12-18, after
 #               which `brew install` errors out and takes this whole batch with it.
 #               Homebrew points to the antigravity-cli cask, but that's a different
-#               CLI with a different invocation, so claude/skills/gemini/ (which
+#               CLI with a different invocation, so agents/skills/gemini/ (which
 #               shells out to `gemini -p`) would need rewriting first.
 #   bun         only consumer was gstack, also removed below.
 #   ocrmypdf    pulled in ghostscript + tesseract; all three went together.
@@ -65,7 +65,7 @@ export HOMEBREW_NO_AUTO_UPDATE=1
 #   graphviz    pulled in ~12 X11/cairo/glib deps for diagram rendering.
 #   himalaya    TUI email client, unused.
 #   deno        NOT removed: it is a *required* dependency of yt-dlp (which
-#               claude/skills/clean/scripts/cleansubs.py uses), so brew reinstalls
+#               agents/skills/clean/scripts/cleansubs.py uses), so brew reinstalls
 #               it automatically. Dropping it from this line changes nothing.
 #   duti        needed by .macos/defaults.sh to set the default browser. The old
 #               `defaults write ... LSHandlers -array-add` approach silently never
@@ -274,7 +274,7 @@ uv pip install --python ~/.config/config-venv/bin/python3 -r ~/.config/requireme
 uv tool install --quiet subliminal || true   # movie-subs: subtitle fetching
 
 # --- External repos that skills depend on -------------------------------------
-# parlai: the `parlai` CLI backing claude/skills/parlai (AI chat history search).
+# parlai: the `parlai` CLI backing agents/skills/parlai (AI chat history search).
 # SKILL.md expects it at ~/workspace/parlai and on PATH. Editable install so a
 # `git pull` there takes effect without reinstalling.
 if [ ! -d ~/workspace/parlai ]; then
@@ -282,18 +282,32 @@ if [ ! -d ~/workspace/parlai ]; then
 fi
 uv tool install --quiet --editable ~/workspace/parlai || true
 
+# fnm: shell integration. The brew line above installs the binary; without this
+# eval in .zshrc, `fnm` exists on PATH but doesn't manage $PATH or auto-switch
+# on .nvmrc/.node-version, so `node`/`npm` still fall through to whatever's on
+# the system. Idempotent: skip if a fnm block is already there.
+if ! grep -q 'fnm env' ~/.config/.zshrc 2>/dev/null; then
+  cat >> ~/.config/.zshrc <<'EOF'
+
+# --- Node version management (fnm) --------------------------------------------
+if command -v fnm >/dev/null 2>&1; then
+  eval "$(fnm env --use-on-cd --shell zsh)"
+fi
+EOF
+fi
+
 # ws: workspace manager. Lives as a git submodule at ~/.config/ws; `ws init`
 # symlinks it into ~/.local/bin and seeds config.json. Idempotent.
 git -C ~/.config submodule update --init --recursive
 [ -x ~/.config/ws/ws ] && ~/.config/ws/ws init || true
 
 # gstack removed by request. It cloned github.com/garrytan/gstack into
-# claude/skills/gstack (1.1GB with node_modules) and its ./setup symlinked ~54
+# agents/skills/gstack (1.1GB with node_modules) and its ./setup symlinked ~54
 # skills back out as gstack-* dirs. It was also the only consumer of bun, so both
 # went together. To restore: re-add bun to the brew line above, then
 #   git clone --depth 1 https://github.com/garrytan/gstack.git \
 #     ~/.config/agents/skills/gstack && (cd $_ && ./setup)
-# Note claude/skills/gstack/ is gitignored, so nothing here tracks it.
+# Note agents/skills/gstack/ is gitignored, so nothing here tracks it.
 
 # Run per-skill setup scripts (skills own anything beyond pip, e.g. playwright browsers)
 echo "Running per-skill setup scripts..."

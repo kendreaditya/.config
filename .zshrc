@@ -115,7 +115,7 @@ export PATH="/opt/homebrew/opt/openjdk@17/bin:$PATH"
 export PATH="$HOME/.config/scripts:$PATH"
 
 # Make config-venv python the default for #!/usr/bin/env python3 shebangs.
-# Skill scripts under ~/.config/claude/skills/ install their deps here via
+# Skill scripts under ~/.config/agents/skills/ install their deps here via
 # `mm.py doctor --fix`, tiktok's setup.sh, etc. Without this, those scripts
 # resolve to brew python (no deps) and fail. See ~/.config/CLAUDE.md.
 export PATH="$HOME/.config/config-venv/bin:$PATH"
