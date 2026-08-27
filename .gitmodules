@@ -1,3 +1,6 @@
 [submodule "ws"]
 	path = ws
 	url = https://github.com/kendreaditya/ws.git
+[submodule "parlai"]
+	path = parlai
+	url = https://github.com/kendreaditya/parlai.git
