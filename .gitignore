@@ -23,22 +23,20 @@ gogcli/
 edd-cert/
 github-copilot/
 
-# Claude Code - ignore runtime/state, track behavioral files only
-claude/*
-!claude/CLAUDE.md
-!claude/settings.json
-!claude/system-prompt.txt
-!claude/mcp-servers.json
-!claude/agents/
-!claude/commands/
-!claude/skills/
-!claude/memory/
-!claude/output-styles/
-claude/docs/
+# Agent config - ignore runtime/state, track behavioral files only.
+# Harness-agnostic content lives at the top of agents/; per-harness config
+# (settings, hooks, output styles, prompts) lives under agents/harness/<name>/.
+agents/*
+!agents/skills/
+!agents/commands/
+!agents/memory/
+!agents/personas/
+!agents/harness/
+agents/docs/
 
 # Zap terminal — ~/.zap is symlinked here (see setup-macos.sh). Track settings.toml
 # only: Zap also drops remote-server/, a downloaded Linux binary it installs over SSH,
-# plus other machine-local runtime state. Same allowlist shape as claude/ above.
+# plus other machine-local runtime state. Same allowlist shape as agents/ above.
 zap/*
 !zap/settings.toml
 !zap/keybindings.yaml
@@ -75,15 +73,15 @@ vercel-plugin/
 mcp-server-amazon/
 
 # Skill runtime state (auth tokens, learned patterns, session data)
-claude/skills/*/state/
+agents/skills/*/state/
 
 # Machine-local skills: symlinks into ~/.claude/local-skills/, which is outside
 # this repo. These depend on this laptop's environment (e.g. the Anduril gateway)
 # and must not sync to other machines or deployments.
-claude/skills/WebSearch
+agents/skills/WebSearch
 
 # Logseq skill's scratch test graph — regenerable via seed.py --reset
-claude/skills/logseq/scripts/tests/logseq-test/
+agents/skills/logseq/scripts/tests/logseq-test/
 
 # halflife / trashlog runtime state (logs, locks, state files)
 halflife/logs/

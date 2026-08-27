@@ -292,12 +292,12 @@ git -C ~/.config submodule update --init --recursive
 # skills back out as gstack-* dirs. It was also the only consumer of bun, so both
 # went together. To restore: re-add bun to the brew line above, then
 #   git clone --depth 1 https://github.com/garrytan/gstack.git \
-#     ~/.config/claude/skills/gstack && (cd $_ && ./setup)
+#     ~/.config/agents/skills/gstack && (cd $_ && ./setup)
 # Note claude/skills/gstack/ is gitignored, so nothing here tracks it.
 
 # Run per-skill setup scripts (skills own anything beyond pip, e.g. playwright browsers)
 echo "Running per-skill setup scripts..."
-for s in ~/.config/claude/skills/*/scripts/setup.sh; do
+for s in ~/.config/agents/skills/*/scripts/setup.sh; do
   [ -f "$s" ] || continue
   echo "  → $s"
   bash "$s"
@@ -335,34 +335,23 @@ for plist in ~/.config/scripts/*/*.plist; do
   launchctl load "$target"
 done
 
-# Claude Code behavioral files
-mkdir -p ~/.claude ~/.config/claude/agents
-# Guard: a prior `ln -s` (without -n) into an already-symlinked dir lands *inside* it,
-# creating e.g. ~/.config/claude/agents/agents -> ~/.config/claude/agents. Clean any such loops.
-for d in skills commands agents memory; do
-  loop="$HOME/.config/claude/$d/$d"
-  [ -L "$loop" ] && rm "$loop"
-done
-ln -sfn ~/.config/claude/skills ~/.claude/skills
-ln -sfn ~/.config/claude/commands ~/.claude/commands
-ln -sfn ~/.config/claude/agents ~/.claude/agents
-ln -sfn ~/.config/claude/settings.json ~/.claude/settings.json
-ln -sfn ~/.config/claude/CLAUDE.md ~/.claude/CLAUDE.md
-# memory: settings.json sets autoMemoryDirectory to ~/.claude/memory, so it has to
-# resolve to the version-controlled copy. Claude Code creates it as a real empty dir
-# on first run, which silently shadows the tracked memories — remove that before
-# linking (only if it's a directory we didn't link, and only when empty, so a real
-# unlinked memory dir with content is never discarded).
-if [ -d ~/.claude/memory ] && [ ! -L ~/.claude/memory ]; then
-  rmdir ~/.claude/memory 2>/dev/null || \
-    echo "WARN: ~/.claude/memory is a non-empty real directory — not replacing it; merge it into ~/.config/claude/memory by hand"
-fi
-[ -e ~/.claude/memory ] || ln -sfn ~/.config/claude/memory ~/.claude/memory
+# Agent harness wiring (Claude Code + Codex).
+#
+# All symlinking now lives in agents/link.sh so there is exactly one place that
+# knows the layout. It is idempotent, refuses to clobber real files, and handles
+# the shared-vs-per-harness split:
+#   agents/{skills,commands,memory,personas}  -> shared by every harness
+#   agents/harness/<name>/                    -> that harness only
+#
+# Note ~/.claude/agents points at agents/personas (Claude calls them "agents",
+# Codex uses .toml files kept in harness/codex/agents), and Codex user skills go
+# to ~/.codex/skills/user so its generated .system dir is preserved.
+~/.config/agents/link.sh
 
-# Codex (CLI + desktop app) reads ~/.codex/skills/**/SKILL.md recursively.
-# Expose Claude skills as a subdirectory so Codex's built-ins (.system, codex-primary-runtime) are preserved.
-mkdir -p ~/.codex/skills
-ln -sfn ~/.config/claude/skills ~/.codex/skills/user
+# Verify the result: every CLI in scripts/ exposes a `smoke` self-check, and
+# `doctor` runs all of them. Non-fatal here so a single broken tool does not
+# abort setup, but it surfaces breakage immediately instead of weeks later.
+~/.config/scripts/doctor || true
 
 # Zap terminal — config lives in ~/.config/zap, exposed at the hardcoded ~/.zap.
 #
@@ -389,13 +378,13 @@ if [ -d ~/.zap ] && [ ! -L ~/.zap ]; then
 fi
 [ -e ~/.zap ] || ln -sfn ~/.config/zap ~/.zap
 
-# Claude Code MCP servers — source of truth is ~/.config/claude/mcp-servers.json.
+# Claude Code MCP servers — source of truth is ~/.config/agents/harness/claude/mcp-servers.json.
 # ~/.claude.json holds mutable session state (OAuth, counters, project history) so we
 # don't track it; instead, register each server at user scope via the CLI.
-if command -v claude &>/dev/null && [ -f ~/.config/claude/mcp-servers.json ]; then
+if command -v claude &>/dev/null && [ -f ~/.config/agents/harness/claude/mcp-servers.json ]; then
   echo "Syncing Claude Code MCP servers from mcp-servers.json..."
-  jq -r 'keys[]' ~/.config/claude/mcp-servers.json | while read -r name; do
-    cfg=$(jq -c --arg n "$name" '.[$n]' ~/.config/claude/mcp-servers.json)
+  jq -r 'keys[]' ~/.config/agents/harness/claude/mcp-servers.json | while read -r name; do
+    cfg=$(jq -c --arg n "$name" '.[$n]' ~/.config/agents/harness/claude/mcp-servers.json)
     claude mcp remove "$name" -s user 2>/dev/null || true
     claude mcp add-json "$name" "$cfg" -s user >/dev/null && echo "  ✓ $name"
   done
