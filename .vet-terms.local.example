@@ -1,0 +1,18 @@
+# .vet-terms.local — org-specific terms for vet.sh's internal-hostname check.
+#
+# This file is gitignored and lives only on your machine. vet.sh reads it at
+# staging-time so the committed, PUBLIC vet.sh script never has to hardcode
+# your employer's internal tool/service names — a fixed list of those names
+# baked into a public script is itself a small disclosure.
+#
+# One grep -E pattern fragment per line. Blank lines and lines starting with
+# # are ignored. Fragments are OR'd together and checked case-insensitively
+# against every added line in the staged diff.
+#
+# Copy this file to .vet-terms.local (same directory, no ".example") and fill
+# in your own org's internal hostnames, tool names, or codenames.
+#
+# Example fragments (replace with your own):
+# mycompany
+# internal-tool-name
+# vpn\.mycompany\.dev

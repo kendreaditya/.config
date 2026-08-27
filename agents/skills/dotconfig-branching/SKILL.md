@@ -114,7 +114,12 @@ It reports on five things:
 2. **Absolute home paths** (WARN) — break on other machines and leak the
    username. Use `$HOME` or a relative path.
 3. **Internal hostnames** (FAIL) — org infrastructure references have no place
-   in a public repo.
+   in a public repo. The term list is deliberately NOT hardcoded in this
+   public script (that would itself disclose which internal tools/services
+   exist) — it's read from `.vet-terms.local` at the repo root, a gitignored,
+   per-machine file. Copy `.vet-terms.local.example` to `.vet-terms.local` and
+   fill in your own org's internal hostnames/tool names. Without it, only a
+   small generic set is checked and `vet.sh` warns loudly that it's missing.
 4. **Credential-shaped strings** (FAIL) — token prefixes, AWS key ids, PEM
    private-key headers, JWTs.
 5. **git-crypt locked** (WARN) — when the key is missing the clean filter fails

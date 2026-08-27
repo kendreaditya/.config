@@ -30,8 +30,29 @@ if hits=$(git diff --cached -U0 | grep -nE '^\+.*/(Users|home)/[A-Za-z0-9_.-]+' 
   report WARN "absolute home paths (use \$HOME or relative):"; echo "$hits" | cut -c1-160; findings=1
 fi
 
-# 3. internal hostnames
-if hits=$(git diff --cached -U0 | grep -niE '^\+.*(ORG_TERMS_REDACTED)' | grep -vE '^[0-9]+:\+\+\+'); then
+# 3. internal hostnames/tooling names. This pattern is intentionally NOT
+# hardcoded in this committed, public script -- a fixed list of internal
+# service/tool names would itself be a small disclosure (a hint at what to
+# probe) even though the script's job is to keep other things from leaking.
+# Instead, read an optional local, gitignored file of your own org-specific
+# terms: one grep -E pattern fragment per line, blank lines and lines
+# starting with # ignored. See .vet-terms.local.example for the format.
+# If the file is missing, only the small always-safe generic set below runs.
+terms_file="$root/.vet-terms.local"
+# Deliberately narrow: bare "internal."/"corp." substrings are common enough
+# in ordinary prose/comments (this file's own comments trip a naive ".local"
+# suffix match, for instance) that a broader generic set would be noisy
+# rather than useful. Anchored to look like part of a real hostname/URL.
+generic_terms='https?://[a-z0-9.-]*\.(internal|corp)\.[a-z]{2,}'
+if [ -f "$terms_file" ]; then
+  org_terms=$(grep -vE '^\s*(#|$)' "$terms_file" | paste -sd'|' -)
+  pattern="${generic_terms}${org_terms:+|${org_terms}}"
+else
+  pattern="$generic_terms"
+  report WARN "no .vet-terms.local found -- only generic hostname patterns are checked."
+  report WARN "Copy .vet-terms.local.example to .vet-terms.local and add your org's internal service/tool names."
+fi
+if hits=$(git diff --cached -U0 | grep -niE "^\+.*(${pattern})" | grep -vE '^[0-9]+:\+\+\+'); then
   report FAIL "internal infrastructure references:"; echo "$hits" | cut -c1-160; findings=1
 fi
 

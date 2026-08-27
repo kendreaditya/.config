@@ -113,6 +113,11 @@ macos/tcc-permissions*.tsv
 # ArgoCD CLI config — contains an OIDC auth-token (JWT)
 argocd/
 
+# vet.sh's org-specific internal-hostname terms. Kept local so the committed
+# vet.sh never hardcodes an employer's internal tool/service names — see
+# .vet-terms.local.example for the format.
+/.vet-terms.local
+
 # Confluence CLI — bearer token in config.json, plus local usage stats
 confluence-cli/
 
