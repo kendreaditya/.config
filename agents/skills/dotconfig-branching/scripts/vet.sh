@@ -9,13 +9,15 @@ cd "$root" || exit 2
 findings=0
 report() { printf '\n[%s] %s\n' "$1" "$2"; }
 
-staged=$(git diff --cached --name-only --diff-filter=ACM)
+staged=$(git diff --cached --name-only --diff-filter=ACDMRT)
 if [ -z "$staged" ]; then echo "Nothing staged."; exit 0; fi
 
-# 1. gitignored files that were force-added
+# 1. gitignored files that were force-added. --no-index is required: once a
+# path is staged, plain `check-ignore` consults the index and stops reporting
+# it as ignored, so this check silently never fired without it.
 while IFS= read -r f; do
   [ -z "$f" ] && continue
-  if git check-ignore -q "$f"; then
+  if git check-ignore -q --no-index "$f"; then
     report FAIL "gitignored file is staged (force-added?): $f"; findings=1
   fi
 done <<< "$staged"
