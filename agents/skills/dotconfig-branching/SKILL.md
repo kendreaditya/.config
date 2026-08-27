@@ -37,7 +37,7 @@ scutil --get LocalHostName               # macOS device name
 hostname -s                              # Linux/portable
 ```
 
-Known devices: `MAC-DT4JNF66GH` (Anduril work laptop), `adityas-macbook-pro-1`
+Known devices: `MAC-DT4JNF66GH` (work laptop), `adityas-macbook-pro-1`
 (personal, gold standard), `adityas-macbook-pro-2`, `dev-x86-gov-akendre`
 (Ubuntu dev server).
 
@@ -52,8 +52,16 @@ Known devices: `MAC-DT4JNF66GH` (Anduril work laptop), `adityas-macbook-pro-1`
 
 ## Promotion flow: device branch → `origin/main`
 
-Use when a change is genuinely portable and safe to publish. Run
-`scripts/promote.sh` for the guided version, or by hand:
+Use when a change is genuinely portable and safe to publish.
+
+```bash
+scripts/promote.sh <path> [<path>...]     # guided; vets, commits, does NOT push
+scripts/promote.sh --dry-run <path>...    # show what would move, change nothing
+```
+
+`promote.sh` runs the flow below, refuses to start from a dirty tree or from
+`main`, aborts and returns you to the device branch if `vet.sh` finds anything,
+and stops before `git push` — printing the command instead. By hand:
 
 ```bash
 # 0. Start clean. Uncommitted work must be stashed or committed first.
@@ -69,8 +77,8 @@ git pull --ff-only origin main
 git checkout "$DEVICE" -- <specific/safe/path> ...
 #   or: git cherry-pick <sha>       (if the commit is already clean/isolated)
 
-# 3. VET before committing (see checklist below).
-git diff --cached --name-only
+# 3. VET before committing. vet.sh reads the staged diff; exit 0 = clear.
+scripts/vet.sh
 
 # 4. Commit and publish.
 git commit
@@ -88,33 +96,34 @@ config and machine-local state. Path-scoped checkout is allowlist-shaped —
 you name exactly what becomes public. Default-deny beats default-allow when the
 failure mode is a public credential leak.
 
-## Vetting checklist — required before any push to main
+## Vetting — required before any push to main
 
-Never promote without checking all of these:
+`scripts/vet.sh` is the check. It takes no arguments, reads `git diff --cached`,
+and exits 0 for clear / 1 for findings / 2 if it cannot resolve the repo. Stage
+first, then run it:
 
 ```bash
-# 1. Nothing gitignored is being force-added.
-git diff --cached --name-only | while read -r f; do
-  git check-ignore -q "$f" && echo "IGNORED FILE STAGED: $f"
-done
-
-# 2. No absolute home paths (breaks on other machines & leaks usernames).
-git diff --cached -U0 | grep -nE '^\+.*/(Users|home)/[a-z]+' 
-
-# 3. No internal hostnames.
-git diff --cached -U0 | grep -niE '^\+.*(anduril|lattice|ghe\.|armory|bifrost|teleport|okta)'
-
-# 4. No credential-shaped strings.
-git diff --cached -U0 | grep -nE '^\+.*(sk-[A-Za-z0-9]{20,}|gh[pousr]_|xox[bp]-|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY|eyJ[A-Za-z0-9_-]{20,})'
-
-# 5. git-crypt is not silently failing open (the pre-commit hook enforces this,
-#    but confirm the key is actually installed).
-ls .git/git-crypt/keys >/dev/null 2>&1 || echo "WARNING: git-crypt LOCKED"
+git add <paths>
+scripts/vet.sh
 ```
 
-Items 1–4 producing no output means clear to proceed. The `.githooks/pre-commit`
-hook enforces the git-crypt case automatically; keep `core.hooksPath=.githooks`
-configured (`git config core.hooksPath .githooks`).
+It reports on five things:
+
+1. **Gitignored files that were force-added** (FAIL) — an `-f` add defeats every
+   ignore rule protecting this repo.
+2. **Absolute home paths** (WARN) — break on other machines and leak the
+   username. Use `$HOME` or a relative path.
+3. **Internal hostnames** (FAIL) — org infrastructure references have no place
+   in a public repo.
+4. **Credential-shaped strings** (FAIL) — token prefixes, AWS key ids, PEM
+   private-key headers, JWTs.
+5. **git-crypt locked** (WARN) — when the key is missing the clean filter fails
+   *open*, so encrypted paths would commit as plaintext.
+
+Do not re-implement these checks inline; call `vet.sh` so there is one
+definition to keep correct. `.githooks/pre-commit` independently enforces case 5
+at commit time — keep `core.hooksPath=.githooks` configured
+(`git config core.hooksPath .githooks`) and never bypass it with `--no-verify`.
 
 ## What belongs where
 
@@ -143,12 +152,31 @@ git clone https://github.com/kendreaditya/.config.git ~/.config
 cd ~/.config
 git config core.hooksPath .githooks           # enable the secret guard
 git switch -c "device/$(hostname -s)"         # or scutil --get LocalHostName
+git-crypt unlock /path/to/git-crypt.key       # else encrypted paths stay ciphertext
 ```
 
 If `~/.config` **already exists and is non-empty** — which is the case on the
-Anduril dev server, where `dx` owns `~/.config/dx/` — do not clone over it. Back
-it up, clone, then restore the pre-existing local files as the first commit on
-the device branch. `scripts/adopt-existing.sh` does this.
+work dev server, where a managed tool owns `~/.config/<tool>/` — do not clone
+over it. Adopt it instead:
+
+```bash
+mv ~/.config ~/.config-preexisting            # keep the originals, do not delete
+git clone https://github.com/kendreaditya/.config.git ~/.config
+cd ~/.config
+git config core.hooksPath .githooks
+git switch -c "device/$(hostname -s)"
+
+# Copy the pre-existing local files back in, then commit them to the device
+# branch — never to main, since that is where machine-local state belongs.
+rsync -a --ignore-existing ~/.config-preexisting/ ~/.config/
+git status --short                            # review before staging anything
+git add <the paths you actually want tracked>
+git commit -m "device: adopt pre-existing config from this machine"
+```
+
+Review `git status` by hand rather than `git add -A`: the pre-existing tree is
+exactly where a managed tool's credentials are likely to be. Keep
+`~/.config-preexisting/` until the new tree is confirmed working.
 
 ## Notes
 
