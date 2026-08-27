@@ -39,7 +39,7 @@ git clone https://github.com/kendreaditya/.config ~/.config
 
 # standalone: copy the skill directory into Claude Code's skill path
 git clone https://github.com/kendreaditya/.config /tmp/kconfig
-cp -R /tmp/kconfig/claude/skills/cra ~/.claude/skills/cra
+cp -R /tmp/kconfig/agents/skills/cra ~/.claude/skills/cra
 ```
 
 Restart your Claude Code session and you should see `cra` in the skill list.
