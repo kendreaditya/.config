@@ -11,6 +11,7 @@ Act as the orchestrator. Give one bounded task to a separate Claude Code impleme
 
 - Read [references/brief-template.md](references/brief-template.md) before writing a new brief.
 - Read [references/cli-and-sessions.md](references/cli-and-sessions.md) before launching, resuming, selecting a model, or changing CLI flags.
+- Read [references/dynamic-workflows.md](references/dynamic-workflows.md) before delegating multi-agent orchestration, authoring a workflow script, or installing a named workflow.
 - Read [references/supervision-and-recovery.md](references/supervision-and-recovery.md) for parallel runs, silent output, timeouts, stuck child processes, interrupted sessions, or new follow-up evidence.
 - Read [references/review-and-publish.md](references/review-and-publish.md) before accepting edits, taking screenshots, committing, pushing, or opening/updating a PR.
 
@@ -114,6 +115,56 @@ After Claude exits, Codex must:
 7. send review defects back to the same Claude session as a delta brief when continuity helps.
 
 Only Codex's verified result may be committed or published. Follow the repository's GitHub/PR workflow and applicable publishing skill after verification.
+
+## Delegate a dynamic workflow
+
+Use this when the task is fan-out over many independent items and the human opted into
+multi-agent orchestration. Codex has no `Workflow` tool, so Claude must execute it.
+Read [references/dynamic-workflows.md](references/dynamic-workflows.md) for the script
+contract, limits, and determinism rules.
+
+### Decide who authors the script
+
+Let Claude author it inline for exploratory work: cheapest, and it launches with no
+approval prompt. Have Codex author it when the orchestration logic is itself the
+deliverable — fixed branch conditions, exact schemas, reproducible topology.
+
+If Codex authors it, install it as a **named** workflow at `~/.claude/workflows/<name>.js`
+(`.js` only) and brief Claude to invoke `name` plus `args`. Never pass `scriptPath` to a
+`-p` session: that form can never match an allow rule, so it always asks for approval
+and stalls unattended, and in `auto` mode the classifier may deny it as unreviewable code.
+
+### Write the brief
+
+Beyond the normal brief, include:
+
+- explicit opt-in, e.g. "I am explicitly opting in to multi-agent orchestration. Use the
+  `Workflow` tool." The `ultracode` keyword does not trigger it under `-p`;
+- an instruction not to fall back to inline work or sequential `Task` calls, which Claude
+  otherwise prefers;
+- the topology by name — `pipeline()` for streaming per-item stages (no barrier between
+  stages), `parallel()` only when a barrier is genuinely required;
+- the `schema` fields for each `agent()` call, so results are validated data not prose;
+- the determinism rules, since a violation is rejected before launch and wastes the run;
+- a reporting contract: verbatim script, `runId`, `transcriptDir`, exact returned JSON,
+  per-agent models, agent counts, and any first-attempt rejection quoted;
+- for per-file review fan-out, state whether agents may read other files. Agents reason
+  about each file as a standalone module and will otherwise reject real defects as
+  unreachable.
+
+### Launch and verify
+
+Add `Workflow` to `--tools` explicitly; the runner's default tool list omits it and Claude
+will silently do the work inline instead. Run in the foreground and poll — detached
+launches can die without artifacts. Expect a several-minute silence because `Workflow`
+returns a task ID immediately and completes asynchronously.
+
+Verify from `journal.jsonl` in the transcript directory, not from Claude's summary: it
+records each agent's real return value and cache key. Confirm the persisted script matches
+what you sent, and check the transcripts for the model that actually ran — `meta.json`
+records the requested model, and `CLAUDE_CODE_SUBAGENT_MODEL` can silently override
+`opts.model`. A failed `agent()` resolves to `null` rather than rejecting, so inspect
+agent counts before calling a run clean.
 
 ## Report the handoff
 

@@ -82,6 +82,48 @@ Inspect the current worktree first. Preserve valid existing edits, complete clea
 </review_delta>
 ```
 
+## Dynamic workflow additions
+
+For multi-agent orchestration, add these blocks. See
+[dynamic-workflows.md](dynamic-workflows.md) for the mechanics.
+
+```xml
+<orchestration_optin>
+I am explicitly opting in to multi-agent orchestration. Use the `Workflow` tool.
+Do not hand-roll sequential Task calls and do not do this work inline in the main loop.
+</orchestration_optin>
+
+<workflow_shape>
+Author a script whose first statement is `export const meta = {...}` (pure literals only)
+with name, description, and phases.
+
+Topology: pipeline() over ITEMS with these stages, or parallel() if a barrier is required.
+  Stage 1 (phase: '...'): agent() that ... , schema { FIELDS }
+  Stage 2 (phase: '...'): agent() receiving stage 1's result, schema { FIELDS }
+
+May a stage read files other than the one it was given? State yes or no explicitly.
+
+Return an aggregate object so the main loop can read it.
+
+The VM rejects the script before launch if it uses Date.now(), Math.random(), argless
+new Date(), import(), require, process, or fetch. Keep it deterministic; pass timestamps
+via args.
+</workflow_shape>
+
+<workflow_report>
+Report, in order: the verbatim final script; runId, absolute scriptPath, and transcript
+directory; the exact returned JSON (read the full output file if the notification says it
+was truncated); agent count, subagent tokens, duration; the model each agent actually ran
+on; and any rejection or correction on your first attempt, quoted verbatim.
+
+I will check these claims against journal.jsonl myself.
+</workflow_report>
+```
+
+To run a workflow Codex authored, install it at `~/.claude/workflows/<name>.js` and
+replace `<workflow_shape>` with an instruction to invoke `name: <meta.name>` with the
+given `args`, and not to re-author the script.
+
 ## Visual bug additions
 
 For screenshot-driven work, explicitly state:
