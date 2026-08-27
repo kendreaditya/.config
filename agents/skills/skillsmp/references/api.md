@@ -4,9 +4,10 @@ Detailed technical documentation for searching the SkillsMP marketplace.
 
 ## API Configuration
 
-- **API Key:** `sk_live_skillsmp_XluxGQvRNlyDKs0Edv8OaXsxC3U6RBfmuYMU8WQvdQ0`
+- **API Key:** Set `SKILLSMP_API_KEY` in `~/.config/.env` (git-crypt encrypted) — never
+  hardcode the key in this file or in `SKILL.md`.
 - **Base URL:** `https://skillsmp.com/api/v1`
-- **Auth Header:** `Authorization: Bearer sk_live_skillsmp_XluxGQvRNlyDKs0Edv8OaXsxC3U6RBfmuYMU8WQvdQ0`
+- **Auth Header:** `Authorization: Bearer $SKILLSMP_API_KEY`
 
 ## Endpoints
 

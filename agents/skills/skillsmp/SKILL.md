@@ -16,7 +16,8 @@ Search for Claude Code skills and agent capabilities from the SkillsMP marketpla
 ## Execution
 
 - Use `Bash` with `curl` — **never** `WebFetch` (it cannot send custom headers, causing 401).
-- **Authentication**: Pass the Bearer token via `-H` flag.
+- **Authentication**: Pass the Bearer token via `-H` flag. Set `SKILLSMP_API_KEY` in
+  `~/.config/.env` (git-crypt encrypted) — never hardcode the key in this file.
 - **Search Logic**:
   - Keyword: `https://skillsmp.com/api/v1/skills/search?q={query}&sortBy=stars`
   - AI Semantic: `https://skillsmp.com/api/v1/skills/ai-search?q={url_encoded_query}`
@@ -25,7 +26,7 @@ Search for Claude Code skills and agent capabilities from the SkillsMP marketpla
 
 ```bash
 curl -s "https://skillsmp.com/api/v1/skills/search?q=QUERY&sortBy=stars" \
-  -H "Authorization: Bearer sk_live_skillsmp_XluxGQvRNlyDKs0Edv8OaXsxC3U6RBfmuYMU8WQvdQ0" | \
+  -H "Authorization: Bearer $SKILLSMP_API_KEY" | \
   python3 -c "
 import json, sys
 d = json.load(sys.stdin)
