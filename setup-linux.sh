@@ -19,11 +19,12 @@ sudo apt update && sudo apt upgrade -y
 
 # Install everything in one call (resolves deps once, parallel downloads)
 echo "Installing packages..."
+# Mirrors setup-macos.sh: tesseract-ocr, ocrmypdf and graphviz removed by request.
 sudo apt install -y \
   imagemagick cmake gcc g++ ffmpeg curl wget \
   python3 python3-pip python3-venv python3-dev \
   fzf neovim vim tmux git zsh ripgrep fastfetch \
-  tesseract-ocr ocrmypdf graphviz ncdu fswatch \
+  ncdu fswatch \
   jq git-crypt tree rclone \
   i3 ulauncher
 
@@ -67,10 +68,10 @@ fi
 # Global npm CLIs (yarn removed by request — pnpm covers the same ground)
 npm install -g wrangler vercel pnpm typescript tailwindcss eslint
 
-# Bun
-command -v bun &>/dev/null || curl -fsSL https://bun.sh/install | bash
+# Bun removed by request: its only consumer was gstack, also removed.
+# To restore: curl -fsSL https://bun.sh/install | bash
 
-# Deno
+# Deno — kept: yt-dlp requires it (see setup-macos.sh for the detail)
 command -v deno &>/dev/null || curl -fsSL https://deno.land/install.sh | sh
 
 # Cloudflare WARP
