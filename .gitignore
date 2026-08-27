@@ -133,8 +133,5 @@ tailscale-official-proxy/
 bunnylol/*
 !bunnylol/config.toml
 
-# opencode — only opencode.jsonc is meaningful config; the rest (node_modules,
-# lockfiles, its own nested .gitignore) is npm/bun scaffolding it manages
-# itself. Same allowlist shape as agents/ and zap/ above.
-opencode/*
-!opencode/opencode.jsonc
+# opencode — unused, fully ignored (not tracked)
+opencode/

@@ -1,8 +1,8 @@
 # AGENTS.md
 
 This file is the harness-agnostic entry point for AI coding agents working in
-this repository (Codex, Claude Code, opencode, and others). It documents the
-repo's real on-disk layout. Harness-specific notes are called out inline.
+this repository (Codex, Claude Code, and others). It documents the repo's
+real on-disk layout. Harness-specific notes are called out inline.
 
 > Maintenance note: do NOT generate this file by find-replacing `Claude` with
 > another harness name in CLAUDE.md. Directory names on disk are literal, and a
