@@ -32,6 +32,8 @@ agents/*
 !agents/memory/
 !agents/personas/
 !agents/harness/
+!agents/link.sh
+!agents/link.ps1
 agents/docs/
 
 # Zap terminal — ~/.zap is symlinked here (see setup-macos.sh). Track
