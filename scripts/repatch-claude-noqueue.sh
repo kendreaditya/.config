@@ -65,7 +65,7 @@
 #    plaintext inside it — you can grep it with `grep -oa <bytes> <file>`.
 #
 # 2. We had read-only source access at
-#    /Users/kendreaditya/workspace/decision-frontier/src — an unpacked tree
+#    /Users/akendre/workspace/decision-frontier/src — an unpacked tree
 #    of the same release (TypeScript source, no build infra). That let us
 #    locate the exact functions we wanted to neutralize. The relevant
 #    source files are:

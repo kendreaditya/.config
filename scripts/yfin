@@ -1,4 +1,4 @@
-#!/usr/bin/env -S /Users/kendreaditya/workspace/.venv/bin/python
+#!/usr/bin/env python3
 """yfin — small Yahoo Finance CLI for ticker info + N-year stock returns."""
 
 import argparse

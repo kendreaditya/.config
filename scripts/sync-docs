@@ -1,4 +1,4 @@
-#!/Users/kendreaditya/.config/config-venv/bin/python3
+#!/usr/bin/env python3
 """Download all Claude Code docs to ~/.config/claude/docs/ as Markdown."""
 import re
 import sys
