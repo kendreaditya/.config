@@ -39,6 +39,11 @@ if (Test-Path "$Dest\.git") {
     git clone $Repo $Dest
 }
 
+# Enable the plaintext-secret pre-commit guard. This repo is public and uses
+# git-crypt; core.hooksPath doesn't ship as part of a clone (it's local repo
+# config, not tracked content), so every fresh clone needs this set once.
+git -C $Dest config core.hooksPath .githooks
+
 # Hand off to the Windows setup script
 $Script = "$Dest\setup-windows.ps1"
 Write-Output "==> Running setup-windows.ps1"
