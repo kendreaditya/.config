@@ -1,0 +1,13 @@
+# Zap custom keybindings. Zap reads ~/.zap/keybindings.yaml, which is symlinked
+# to ~/.config/zap (see setup-macos.sh), so this file is the tracked source.
+#
+# Format: "action_name": "key-combo"
+# Modifiers: cmd, ctrl, alt, shift, cmdorctrl (cmd on macOS, ctrl elsewhere).
+# Combine with "-", e.g. "cmd-shift-K". Uppercase the letter when shift is used.
+
+# AI command search — natural language in, a shell command inserted into the
+# input line. Zap ships this action with NO default keybinding; it is otherwise
+# only reachable via right-click in the input > "AI command search".
+# Chosen cmd-shift-K because it is not in Zap's default keybinding table
+# (ctrl-shift-R is taken by input:toggle_workflows).
+"input:toggle_natural_language_command_search": "cmd-shift-K"

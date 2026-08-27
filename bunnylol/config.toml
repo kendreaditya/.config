@@ -1,0 +1,133 @@
+# =============================================================================
+# bunnylol config — portable template
+#
+# This is the doc-only public version: the URL-derivation methodology below is
+# real and battle-tested, but [user_bindings] is empty. The live file with all
+# shortcut data lives on this machine's device branch (see the
+# dotconfig-branching skill) — bunnylol 0.2.0 has no --config flag and no
+# include mechanism, so it only ever reads ~/.config/bunnylol/config.toml.
+# =============================================================================
+#
+# ----- FOR THE NEXT AGENT: HOW TO BUILD ONE OF THESE, AND WHY IT LOOKS LIKE THIS -----
+#
+# WHERE THE URLS SHOULD COME FROM. Don't guess them from vendor docs. Mine them
+# from the user's own browser history: Chrome at
+# ~/Library/Application Support/Google/Chrome/Default/History and Safari at
+# ~/Library/Safari/History.db. Copy Chrome's DB before reading (it holds a lock
+# while running); Safari's needs a read-only URI - open it as
+# "file:$HOME/Library/Safari/History.db?mode=ro&immutable=1", which sidesteps
+# the macOS TCC prompt that a plain cp triggers. Chrome timestamps are
+# microseconds since 1601 (divide by 1e6, subtract 11644473600); Safari's are
+# seconds since 2001 (add 978307200). A good starting point is an SSO
+# provider's "My Apps" dashboard export - but every link in one is usually a
+# launch URL with no query slot, useless for deep links. The real
+# hostnames only appear after clicking through every tile and re-reading the
+# history. That two-pass approach - inventory first, then resolve by visiting -
+# is what turns a handful of guessed hosts into a much larger set of verified
+# ones.
+#
+# HOW TO VERIFY EACH URL. A binding is verified only when the host AND path
+# were observed in real traffic, not inferred. Deep-link patterns should be
+# lifted from actual visited URLs - e.g. a search endpoint that returns
+# `?q=X&type=repositories` tells you the type= enum is real, so extrapolating
+# other type= values is safe. Anything unverified should be flagged with what
+# to click to confirm it. Two traps worth repeating: (1) a redirect to an SSO
+# page proves NOTHING about whether that URL's query param is real - a docs
+# search endpoint can return the same redirect as its bare root, which is a
+# reason to downgrade a binding to unverified rather than trust it; (2) SSO
+# endpoints carrying a single-use token are not shortcut targets, and their
+# resume host may not even resolve in DNS.
+#
+# THE TENANCY TRAP. Many enterprise SaaS tools are dual-tenant
+# commercial/government, and guessing the wrong one costs an SSO round-trip.
+# A GCC High M365 stack, for example, uses *.office365.us / *.sharepoint.us /
+# login.microsoftonline.us instead of the commercial hostnames - a shortcut
+# pointing at the commercial URL simply fails. Some M365 URLs accept a
+# `?realm=` param to skip the tenant account-chooser. Chat, cloud, video, and
+# e-signature tools are common candidates for this kind of doubling, which is
+# why a keyword convention with a tenant suffix (e.g. sl/gsl for two Slack
+# tenants) is worth adopting early.
+#
+# ----- HOW TO DERIVE INTENT ALIASES -----
+#
+# THE PROBLEM. If every keyword is named after the VENDOR - trip for the
+# travel tool, pay for the payroll tool - that requires remembering which SaaS
+# the employer bought, which a new hire does not have and which anyone forgets
+# after a week off. People know what they want to DO ("book a flight", "find
+# my paystub", "request repo access"), not who sells it. So give each
+# destination an intents list: the nouns and VERBS someone would actually
+# type. One tool legitimately answering to many intents (a payroll tool
+# answering to pay/paystub/w2/401k/benefits) is correct, not redundant.
+#
+# THE HARD PART IS THE AMBIGUOUS ONES - expect to make judgment calls like:
+#   stock      - if the employer is private, there is no ticker. equity/rsu/
+#                vest should route to the equity platform; stock/ticker/quote
+#                stays a public lookup.
+#   docs       - often several plausible answers: devdocs/api -> internal dev
+#                docs, wiki/kb/runbook -> the wiki, notes -> a notes tool,
+#                word -> Word, teamsites -> SharePoint.
+#   chat       - at work chat/dm/msg usually means the team chat tool;
+#                ai/llm/chatbot should route to whatever internal AI tool
+#                exists.
+#   ticket     - two ticketing systems are common: help/support/file -> an
+#                internal-support tool; issue/bug/story -> the issue tracker.
+#   compliance - genuinely two things at most companies: split into
+#                trainingcompliance and devicecompliance.
+# Keywords that collide with bunnylol built-ins (e.g. 'wiki' and 'gmail')
+# need override = true to win at work.
+#
+# WHY ALIASES SHOULD BE DUPLICATED URLS, NOT COMMAND REWRITES. The obvious
+# implementation looks like flight = { command = "trip" } - clean indirection
+# where one URL edit propagates everywhere. It silently FAILS: bunnylol
+# command rewrites resolve only to BUILT-INS, never to other user_bindings, so
+# an alias like that resolves to a literal Google search for the string
+# "trip". Every alias needs to repeat the full URL. The cost is that changing
+# a destination means updating every alias, not editing one line. Don't
+# "optimize" this back into command bindings without re-testing.
+#
+# ----- OPERATIONAL NOTES -----
+#
+# HOT RELOAD WORKS. The server mtime-checks this file per request, so edits go
+# live with no restart (verified: PID unchanged across an edit). Invalid TOML
+# keeps the LAST GOOD config instead of crashing, with errors in
+# ~/Library/Logs/bunnylol.err.log. Only [server] changes need a restart, since
+# Rocket binds the socket at launch:
+#   launchctl kickstart -k gui/$(id -u)/<launchagent-label>
+#
+# DUPLICATE KEYS ARE A HARD ERROR. TOML rejects them ("Cannot overwrite a
+# value"), and the whole file fails to parse - which the reloader then papers
+# over by keeping stale config, so the symptom is "my edit did nothing".
+# Check with:  grep -oE '^[a-z0-9]+ = ' config.toml | tr -d ' =' | sort | uniq -d
+#
+# override = true FIXES ROUTING BUT NOT DISPLAY. A colliding keyword routes
+# correctly but `bunnylol list` still shows the built-in's description.
+# Cosmetic, but it will make the listing look wrong. Renaming to a
+# non-colliding keyword is the only real fix.
+#
+# PLACEHOLDER SYNTAX DIFFERS PER TARGET - this bites repeatedly. {} here in
+# bunnylol, %s in Chrome's Site Search UI, {searchTerms} in Chrome policy,
+# {Query} in Raycast. Convert when regenerating, never copy across.
+#
+# CONSIDER BINDING TO 127.0.0.1 DELIBERATELY. Nothing needs to leave the
+# machine. As a DEFAULT search engine, every omnibox keystroke would otherwise
+# ship internal hostnames to a third party if this were a hosted redirect
+# worker instead of a local server - and if the network already blocks
+# arbitrary external domains, a blocked hosted worker would break ALL
+# searching rather than degrade. A local CLI + server gets bare-arg dispatch
+# with none of that exposure.
+# =============================================================================
+
+# Unrecognized input falls through to Google, matching your current default.
+default_search = "google"
+stock_provider = "yahoo"   # exchange-agnostic; no :NASDAQ suffix needed
+
+[server]
+port = 8000
+address = "127.0.0.1"   # localhost only - nothing leaves this machine
+log_level = "normal"
+
+[history]
+enabled = true
+max_entries = 1000
+
+[user_bindings]

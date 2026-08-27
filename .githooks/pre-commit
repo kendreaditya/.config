@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Guard against committing plaintext secrets when git-crypt is LOCKED.
+#
+# Why this exists: this repo is public and uses git-crypt in symmetric mode.
+# If .git/git-crypt/keys is absent (fresh clone, or key never installed), the
+# clean filter fails and git stores the file VERBATIM instead of encrypting.
+# That failure is silent. This hook makes it loud.
+set -euo pipefail
+
+fail=0
+
+# Every path git-crypt is supposed to encrypt, per .gitattributes.
+while IFS= read -r pattern; do
+  [ -z "$pattern" ] && continue
+  while IFS= read -r staged; do
+    [ -z "$staged" ] && continue
+    # A properly encrypted blob starts with the git-crypt magic bytes.
+    if ! git cat-file -p ":$staged" 2>/dev/null | head -c 9 | grep -q 'GITCRYPT'; then
+      echo "BLOCKED: '$staged' is staged as PLAINTEXT but .gitattributes says it must be encrypted." >&2
+      fail=1
+    fi
+  done < <(git diff --cached --name-only --diff-filter=ACM -- "$pattern")
+done < <(awk '/filter=git-crypt/ {print $1}' .gitattributes 2>/dev/null)
+
+if [ "$fail" -ne 0 ]; then
+  cat >&2 <<'MSG'
+
+git-crypt appears LOCKED on this machine, so encryption silently no-oped.
+Fix with:   git-crypt unlock /path/to/git-crypt-key
+Then re-stage. Refusing to commit plaintext secrets to a PUBLIC repo.
+MSG
+  exit 1
+fi

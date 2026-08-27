@@ -29,9 +29,34 @@ The bootstrap auto-detects the platform, installs prereqs (Xcode CLT / git), clo
 
 - **Package manager native** — Homebrew (macOS), apt/snap (Linux), winget (Windows)
 - **Core CLIs** — neovim, tmux, fzf, ripgrep, gh, fastfetch, atuin, yq, yt-dlp
-- **Runtimes** — Node, Python, Bun, Deno
+- **Runtimes** — Node (via fnm), Python, Bun, Deno
 - **Apps** — VS Code, Chrome, Obsidian, Postman, Raycast/Ulauncher, Zoom, Tailscale
-- **Claude Code CLI**, Oh My Zsh, npm globals, Python venv, vim-plug
+- **Claude Code + Codex CLIs**, Oh My Zsh, npm globals, Python venv, vim-plug
 - **Fonts** from `assets/fonts/` → installed to the OS font directory
 - **System defaults** — dock/finder/sidebar (macOS), GNOME settings (Linux), PowerToys + PSReadLine (Windows)
-- **Symlinks** — scripts to `~/.local/bin`, Claude config to `~/.claude/`
+- **Symlinks** — scripts to `~/.local/bin`, agent config (`agents/`) to `~/.claude/` and `~/.codex/`
+
+## Working on this repo
+
+This repo is **public**. Don't work directly on `main` — default to a
+per-device branch instead:
+
+```bash
+git switch -c "device/$(hostname -s)"     # or: git switch -c "device/$(scutil --get LocalHostName)" on macOS
+```
+
+Everything lives on that branch first, including work-specific or
+machine-local config — it's never pushed. Only promote a change to `main`
+once it's genuinely portable and safe to publish:
+
+```bash
+agents/skills/dotconfig-branching/scripts/promote.sh <path> [<path>...]
+```
+
+`promote.sh` checks out just those paths from your device branch onto `main`,
+runs `vet.sh` (checks for internal hostnames, credential-shaped strings,
+force-added ignored files, absolute home paths) against the staged diff,
+commits, then rebases your device branch back onto the updated `main`. It
+stops before `git push` — publishing stays a manual, reviewed step.
+
+Full details: `agents/skills/dotconfig-branching/SKILL.md`.
