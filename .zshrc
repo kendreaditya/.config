@@ -132,3 +132,12 @@ if [[ -f "$HOME/.config/.env" ]]; then
   source "$HOME/.config/.env"
   set +a
 fi
+
+# --- Node version management (fnm) --------------------------------------------
+# Replaces brew's nvm, which was installed by setup-macos.sh but never
+# initialized (nvm is a shell function and needs its script sourced, so `nvm`
+# was simply not a command). fnm is a single binary, ~40x faster to init, and
+# needs only this eval. --use-on-cd auto-switches on .nvmrc/.node-version.
+if command -v fnm >/dev/null 2>&1; then
+  eval "$(fnm env --use-on-cd --shell zsh)"
+fi
