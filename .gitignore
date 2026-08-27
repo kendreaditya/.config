@@ -100,7 +100,7 @@ vercel-plugin/
 raycast-x/
 
 # macOS TCC permission snapshots (machine fingerprint - do not publish)
-.macos/tcc-permissions*.tsv
+macos/tcc-permissions*.tsv
 
 # ============================================================================
 # Machine-local credentials & runtime state (added 2026-08-26)

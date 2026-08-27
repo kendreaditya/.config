@@ -1,5 +1,5 @@
 #!/bin/bash
-# .macos/defaults.sh — System-wide macOS defaults
+# macos/defaults.sh — System-wide macOS defaults
 # Run standalone or called from setup-macos.sh (set MACOS_SETUP_RUNNING=1 to skip killall)
 set -euo pipefail
 

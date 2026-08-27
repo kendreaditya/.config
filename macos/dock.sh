@@ -1,5 +1,5 @@
 #!/bin/bash
-# .macos/dock.sh — Dock configuration
+# macos/dock.sh — Dock configuration
 # Run standalone or called from setup-macos.sh (set MACOS_SETUP_RUNNING=1 to skip killall)
 set -euo pipefail
 

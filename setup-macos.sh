@@ -67,7 +67,7 @@ export HOMEBREW_NO_AUTO_UPDATE=1
 #   deno        NOT removed: it is a *required* dependency of yt-dlp (which
 #               agents/skills/clean/scripts/cleansubs.py uses), so brew reinstalls
 #               it automatically. Dropping it from this line changes nothing.
-#   duti        needed by .macos/defaults.sh to set the default browser. The old
+#   duti        needed by macos/defaults.sh to set the default browser. The old
 #               `defaults write ... LSHandlers -array-add` approach silently never
 #               worked, because lsd owns that array and overwrites it.
 brew install mas imagemagick cmake gcc ffmpeg gh wget curl python@3.12 \
@@ -410,7 +410,7 @@ fi
 
 # Apply macOS configuration
 echo "Applying macOS settings..."
-MACOS_DIR="$(dirname "$0")/.macos"
+MACOS_DIR="$(dirname "$0")/macos"
 chmod +x "$MACOS_DIR"/*.sh
 export MACOS_SETUP_RUNNING=1
 

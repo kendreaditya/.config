@@ -1,5 +1,5 @@
 #!/bin/bash
-# .macos/power.sh — pmset power management profile
+# macos/power.sh — pmset power management profile
 # Battery: aggressive display sleep + system sleep to save power
 # AC: longer display sleep, never auto-sleep (keeps builds/SSH/downloads alive)
 set -euo pipefail
