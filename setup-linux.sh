@@ -24,6 +24,7 @@ sudo apt install -y \
   python3 python3-pip python3-venv python3-dev \
   fzf neovim vim tmux git zsh ripgrep fastfetch \
   tesseract-ocr ocrmypdf graphviz ncdu fswatch \
+  jq git-crypt tree rclone \
   i3 ulauncher
 
 # vim-plug for neovim
@@ -45,14 +46,26 @@ sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/
 sudo chmod a+x /usr/local/bin/yq
 command -v atuin &>/dev/null || bash <(curl https://raw.githubusercontent.com/atuinsh/atuin/main/install.sh)
 
+# uv (Python package/tool manager) and fnm (Node version manager) — neither is
+# a stable apt package across Debian/Ubuntu releases, so use their official
+# installers, matching the atuin/bun/deno pattern above. Both installers land
+# under ~/.local, which only reaches PATH in a new shell — source uv's own env
+# file and prepend ~/.local/bin so both are usable for the rest of this run.
+# NOTE: install paths here are unverified against an actual Ubuntu/Debian box
+# this session (no Linux machine available) — confirm on first real run.
+command -v uv &>/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
+[ -f "$HOME/.local/bin/env" ] && source "$HOME/.local/bin/env"
+command -v fnm &>/dev/null || curl -fsSL https://fnm.vercel.app/install | bash -s -- --skip-shell
+export PATH="$HOME/.local/bin:$PATH"
+
 # Node.js (NodeSource, current LTS)
 if ! command -v node &>/dev/null; then
   curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
   sudo apt install -y nodejs
 fi
 
-# Global npm CLIs
-npm install -g wrangler vercel pnpm typescript tailwindcss eslint yarn
+# Global npm CLIs (yarn removed by request — pnpm covers the same ground)
+npm install -g wrangler vercel pnpm typescript tailwindcss eslint
 
 # Bun
 command -v bun &>/dev/null || curl -fsSL https://bun.sh/install | bash
@@ -97,11 +110,55 @@ if [ ! -d "$HOME/.oh-my-zsh" ]; then
   sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
 fi
 
-# Python venv for .config scripts
+# Python venv for .config scripts. Skip creation if it already exists so a
+# re-run doesn't discard installed packages.
 echo "Setting up .config Python venv..."
-python3 -m venv ~/.config/config-venv
-~/.config/config-venv/bin/pip install --upgrade pip
-~/.config/config-venv/bin/pip install -r ~/.config/requirements.txt
+if [ ! -x ~/.config/config-venv/bin/python3 ]; then
+  python3 -m venv ~/.config/config-venv
+fi
+# uv (10-100x faster than pip, resolves the whole set at once) rather than pip.
+# The venv itself stays a plain stdlib venv so non-uv tooling still understands it.
+uv pip install --python ~/.config/config-venv/bin/python3 -r ~/.config/requirements.txt
+
+# --- Git submodules: ws (workspace manager), parlai (AI chat history search) --
+# Both are plain git submodules pinned to a specific commit in .gitmodules; this
+# one call inits/clones every submodule the repo declares.
+git -C ~/.config submodule update --init --recursive
+
+# --- Standalone CLI tools (isolated envs, not in config-venv) ------------------
+# End-user CLIs rather than libraries our scripts import, so they get their own
+# isolated environment via `uv tool` (the pipx model) instead of config-venv,
+# where their pins would fight our scripts' pins.
+uv tool install --quiet subliminal || true   # movie-subs: subtitle fetching
+
+# parlai: the `parlai` CLI backing agents/skills/parlai (AI chat history
+# search). Editable install of the submodule checkout above.
+uv tool install --quiet --editable ~/.config/parlai || true
+
+# ws: workspace manager. `ws init` symlinks it into ~/.local/bin and seeds
+# config.json. Idempotent.
+[ -x ~/.config/ws/ws ] && ~/.config/ws/ws init || true
+
+# fnm: shell integration. The installer above puts the binary on PATH; without
+# this eval in .zshrc, fnm doesn't manage $PATH or auto-switch on
+# .nvmrc/.node-version. Idempotent: skip if a fnm block is already there.
+if ! grep -q 'fnm env' ~/.config/.zshrc 2>/dev/null; then
+  cat >> ~/.config/.zshrc <<'EOF'
+
+# --- Node version management (fnm) --------------------------------------------
+if command -v fnm >/dev/null 2>&1; then
+  eval "$(fnm env --use-on-cd --shell zsh)"
+fi
+EOF
+fi
+
+# Run per-skill setup scripts (skills own anything beyond pip, e.g. playwright browsers)
+echo "Running per-skill setup scripts..."
+for s in ~/.config/agents/skills/*/scripts/setup.sh; do
+  [ -f "$s" ] || continue
+  echo "  → $s"
+  bash "$s"
+done
 
 # Workspace dir
 mkdir -p ~/workspace
@@ -124,24 +181,37 @@ for script in ~/.config/scripts/*; do
   fi
 done
 
-# Claude Code behavioral files
-mkdir -p ~/.claude ~/.config/claude/agents
-# Guard: a prior `ln -s` (without -n) into an already-symlinked dir lands *inside* it,
-# creating e.g. ~/.config/claude/agents/agents -> ~/.config/claude/agents. Clean any such loops.
-for d in skills commands agents; do
-  loop="$HOME/.config/claude/$d/$d"
-  [ -L "$loop" ] && rm "$loop"
-done
-ln -sfn ~/.config/claude/skills ~/.claude/skills
-ln -sfn ~/.config/claude/commands ~/.claude/commands
-ln -sfn ~/.config/claude/agents ~/.claude/agents
-ln -sfn ~/.config/claude/settings.json ~/.claude/settings.json
-ln -sfn ~/.config/claude/CLAUDE.md ~/.claude/CLAUDE.md
+# Agent harness wiring (Claude Code + Codex).
+#
+# All symlinking lives in agents/link.sh so there is exactly one place that
+# knows the layout (plain bash, portable — same script macOS runs). It is
+# idempotent, refuses to clobber real files, and handles the shared-vs-per-
+# harness split:
+#   agents/{skills,commands,memory,personas}  -> shared by every harness
+#   agents/harness/<name>/                    -> that harness only
+~/.config/agents/link.sh
 
 # Claude Code CLI
 if ! command -v claude &> /dev/null; then
   echo "Installing Claude Code..."
   curl -fsSL https://claude.ai/install.sh | bash
+fi
+
+# Verify the result: every CLI in scripts/ exposes a `smoke` self-check, and
+# `doctor` runs all of them. Non-fatal here so a single broken tool does not
+# abort setup, but it surfaces breakage immediately instead of weeks later.
+~/.config/scripts/doctor || true
+
+# Claude Code MCP servers — source of truth is ~/.config/agents/harness/claude/mcp-servers.json.
+# ~/.claude.json holds mutable session state (OAuth, counters, project history) so we
+# don't track it; instead, register each server at user scope via the CLI.
+if command -v claude &>/dev/null && [ -f ~/.config/agents/harness/claude/mcp-servers.json ]; then
+  echo "Syncing Claude Code MCP servers from mcp-servers.json..."
+  jq -r 'keys[]' ~/.config/agents/harness/claude/mcp-servers.json | while read -r name; do
+    cfg=$(jq -c --arg n "$name" '.[$n]' ~/.config/agents/harness/claude/mcp-servers.json)
+    claude mcp remove "$name" -s user 2>/dev/null || true
+    claude mcp add-json "$name" "$cfg" -s user >/dev/null && echo "  ✓ $name"
+  done
 fi
 
 ~/.local/bin/sync-docs || echo "Warning: sync-docs failed (may need 'requests' — install manually)"
@@ -171,13 +241,23 @@ command -v google-chrome &>/dev/null && xdg-settings set default-web-browser goo
 # Verify critical tools are available
 echo ""
 echo "Verifying installation..."
-for cmd in node python3 nvim tmux gh claude fastfetch; do
+for cmd in node python3 nvim tmux gh claude fastfetch uv fnm jq; do
   if command -v "$cmd" &>/dev/null; then
     echo "  ✓ $cmd"
   else
     echo "  ✗ $cmd (not in PATH — open a new shell)"
   fi
 done
+
+# git-crypt: warn if the encrypted files are still locked. Nothing here can
+# unlock them — that needs the symmetric key, which by design isn't in the
+# repo. Until then .env, agents/memory/**, and the monarch-money prefs are
+# ciphertext: API tokens stay unset and agents can't read their memories.
+if head -c 10 ~/.config/.env 2>/dev/null | grep -aq GITCRYPT; then
+  echo ""
+  echo "🔒 ~/.config is git-crypt locked — run 'cd ~/.config && git-crypt unlock /path/to/key'"
+  echo "   to decrypt .env (API tokens) and agents/memory/."
+fi
 
 echo ""
 echo "✅ Linux setup complete!"
