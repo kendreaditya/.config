@@ -15,6 +15,30 @@ Personal dotfiles and agent configuration for macOS. Two main concerns:
 harness's config dir; (2) macOS/Linux/Windows environment bootstrap via
 `setup-macos.sh`.
 
+## This repo is public — branch model
+
+`kendreaditya/.config` is a **public** GitHub repo that also holds work- and
+machine-specific config. GitHub visibility is per-repository, not per-branch,
+so there is no such thing as a private branch — a branch is private only for
+as long as it is never pushed. The workflow makes "never pushed" the default:
+
+```
+device/<hostname>   ← work here. NEVER pushed. Everything lives here first,
+                       including work + machine-local config.
+main                 ← tracks origin/main. Only vetted, portable, non-
+                       sensitive config ever lands here. The public face.
+```
+
+Default to a device branch (`git switch -c "device/$(hostname -s)"`); commit
+there freely. To publish something, run
+`agents/skills/dotconfig-branching/scripts/promote.sh <path>...` — it checks
+out just those paths onto `main`, runs `vet.sh` against the staged diff
+(internal hostnames, credential-shaped strings, force-added ignored files,
+absolute home paths), commits, then rebases the device branch back onto the
+updated `main`. It stops before `git push`; publishing stays a manual,
+reviewed step. Never `git push`, `--all`, or `--mirror` from a device branch.
+Full detail: `agents/skills/dotconfig-branching/SKILL.md`.
+
 ## agents/ layout
 
 ```
