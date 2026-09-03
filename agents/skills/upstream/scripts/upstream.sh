@@ -14,7 +14,7 @@
 #   upstream.sh pull --all           # sync everything that moved
 set -uo pipefail
 
-ROOT="${CLAUDE_CONFIG_DIR:-$HOME/.config/claude}"
+ROOT="${CLAUDE_CONFIG_DIR:-$HOME/.config/agents}"
 
 die()  { printf 'upstream: %s\n' "$1" >&2; exit 1; }
 warn() { printf 'upstream: %s\n' "$1" >&2; }
@@ -49,7 +49,16 @@ fm_get() {
 
 # Body hash, excluding the upstream: block. Our own bookkeeping must not read as
 # a local edit, or every component would look modified forever.
-body_hash() {
+#
+# Every hash in this script MUST go through hash_stream, so that a stored hash and
+# the hash it is later compared against are computed identically. The pristine
+# upstream text has no upstream: block to strip, but it still has to pass through
+# the same awk normalization: awk always terminates the final line with \n, so
+# hashing raw bytes here and stripped bytes there diverges on any file that lacks
+# a trailing newline -- which silently marks pristine files as `edited` forever.
+hash_stream() { shasum -a 256 | cut -d' ' -f1; }
+
+norm() { # strip the upstream: block; normalizes trailing newline as a side effect
   awk '
     NR==1 && $0=="---" { in_fm=1; print; next }
     in_fm && $0=="---" { in_fm=0; print; next }
@@ -57,23 +66,83 @@ body_hash() {
     in_up && /^[[:space:]]/ { next }
     in_up { in_up=0 }
     { print }
-  ' "$1" | shasum -a 256 | cut -d' ' -f1
+  ' "${1:--}"
 }
 
+body_hash() { norm "$1" | hash_stream; }
+
 tracked() {
-  grep -rl --include='*.md' --include='*.json' '^upstream:' \
+  local out
+  out=$(grep -rl --include='*.md' --include='*.json' '^upstream:' \
     "$ROOT/skills" "$ROOT/agents" "$ROOT/commands" "$ROOT/output-styles" \
-    "$ROOT/hooks" "$ROOT/rules" "$ROOT/themes" 2>/dev/null | sort
+    "$ROOT/hooks" "$ROOT/rules" "$ROOT/themes" 2>/dev/null | sort)
+  # A missing ROOT and a genuinely empty collection used to look identical: grep
+  # exits 2, sort swallows it, and the caller prints a bare header and exits 0.
+  if [ -z "$out" ]; then
+    [ -d "$ROOT/skills" ] \
+      || warn "no such directory: $ROOT/skills (set CLAUDE_CONFIG_DIR?)"
+  fi
+  printf '%s' "$out"
+  [ -n "$out" ] && echo
+  return 0
 }
 
 # ---------- github -----------------------------------------------------------
 
-remote_sha() { # repo path ref
-  gh api "repos/$1/commits?path=$2&sha=$3&per_page=1" --jq '.[0].sha' 2>/dev/null
+# Two source kinds. A repo pins `repo`/`path`/`ref`; a gist pins `gist`/`file`.
+# They need different endpoints, different sha semantics, and different decoding,
+# so every network call dispatches on this rather than assuming a repo.
+src_kind() { [ -n "$(fm_get "$1" gist)" ] && echo gist || echo repo; }
+
+remote_sha() { # file -> latest upstream sha
+  local f="$1" repo path ref
+  if [ "$(src_kind "$f")" = gist ]; then
+    # A gist has no branches, and its history is global to the gist rather than
+    # per-file: editing any file in the gist advances the version every file is
+    # compared against. So a moved sha means "something in the gist changed",
+    # not necessarily this file. `diff` is what tells you whether yours moved.
+    gh api "gists/$(fm_get "$f" gist)" --jq '.history[0].version' 2>/dev/null
+    return
+  fi
+  repo=$(fm_get "$f" repo); path=$(fm_get "$f" path)
+  ref=$(fm_get "$f" ref); ref="${ref:-main}"
+  # -f lets gh URL-encode the path. Interpolating it raw makes `gh api` hang
+  # indefinitely on a path containing a space, rather than failing fast.
+  gh api "repos/$repo/commits" -X GET -f "path=$path" -f "sha=$ref" -f per_page=1 \
+    --jq '.[0].sha' 2>/dev/null
 }
 
-fetch_at() { # repo path sha -> stdout
-  gh api "repos/$1/contents/$2?ref=$3" --jq '.content' 2>/dev/null | base64 -d
+fetch_at() { # file sha -> stdout
+  local f="$1" sha="$2" repo path c
+  if [ "$(src_kind "$f")" = gist ]; then
+    # The gist API returns file content already decoded as a JSON string, so
+    # there is no base64 step here. Files over ~1MB come back with
+    # "truncated": true and a raw_url instead; reject rather than write a stub.
+    #
+    # Pipe to real jq rather than using `gh api --jq`: that flag accepts exactly
+    # ONE argument, so passing `--arg` to it fails with "accepts 1 arg(s),
+    # received 4" -- and because the failure is swallowed by 2>/dev/null it
+    # surfaces as a bogus "base sha unreachable", not as a usage error.
+    gh api "gists/$(fm_get "$f" gist)/$sha" 2>/dev/null \
+      | jq -r --arg n "$(fm_get "$f" file)" \
+        'if .files[$n].truncated then empty else (.files[$n].content // empty) end' 2>/dev/null
+    return
+  fi
+  repo=$(fm_get "$f" repo); path=$(fm_get "$f" path)
+  # GitHub returns {"content": null} for files over the ~1MB inline limit. jq
+  # prints the literal string "null", which base64 -d happily decodes into 3
+  # bytes of garbage with exit 0 -- passing every caller's [ -s ] check and
+  # overwriting a real skill with junk. Reject it before decoding.
+  c=$(gh api "repos/$repo/contents/$path" -X GET -f "ref=$sha" --jq '.content' 2>/dev/null)
+  [ -n "$c" ] && [ "$c" != null ] || return 1
+  printf '%s' "$c" | base64 -d 2>/dev/null
+}
+
+# What to show in `list`, and what to name in errors.
+src_label() {
+  [ "$(src_kind "$1")" = gist ] \
+    && echo "gist:$(fm_get "$1" gist | cut -c1-12)" \
+    || fm_get "$1" repo
 }
 
 # ---------- commands ---------------------------------------------------------
@@ -84,39 +153,42 @@ cmd_list() {
   while read -r f; do
     [ -n "$f" ] || continue
     n="${f#$ROOT/}"
-    printf '%-34s %-30s %s\n' "$n" "$(fm_get "$f" repo)" "$(local_state "$f")"
+    printf '%-34s %-30s %s\n' "$n" "$(src_label "$f")" "$(local_state "$f")"
   done < <(tracked)
 }
 
 local_state() { # edited | clean | unknown
-  local f repo path sha stored
+  local f sha stored base bh
   f="$1"
   stored=$(fm_get "$f" content_hash)
   if [ -n "$stored" ]; then
     [ "$stored" = "$(body_hash "$f")" ] && echo clean || echo edited
     return
   fi
-  repo=$(fm_get "$f" repo); path=$(fm_get "$f" path); sha=$(fm_get "$f" sha)
-  [ -n "$repo" ] && [ -n "$sha" ] || { echo unknown; return; }
-  local base; base=$(fetch_at "$repo" "$path" "$sha")
-  [ -n "$base" ] || { echo unknown; return; }
-  if [ "$(printf '%s\n' "$base" | shasum -a 256 | cut -d' ' -f1)" = "$(body_hash "$f")" ]; then
-    echo clean
-  else
-    echo edited
-  fi
+  sha=$(fm_get "$f" sha)
+  [ -n "$(src_label "$f")" ] && [ -n "$sha" ] || { echo unknown; return; }
+  # Route the base through a FILE, never `$(fetch_at ...)`. Command substitution
+  # strips every trailing newline, so a file whose upstream ends in a blank line
+  # hashes differently here than in body_hash (which reads the file directly) --
+  # reporting a pristine component as `edited` forever, which then routes it into
+  # the three-way merge path and writes conflict markers into a file the user
+  # never touched. Same class of bug as the awk normalization note above.
+  base=$(mktemp)
+  fetch_at "$f" "$sha" > "$base"
+  if [ ! -s "$base" ]; then rm -f "$base"; echo unknown; return; fi
+  bh=$(norm "$base" | hash_stream)
+  rm -f "$base"
+  [ "$bh" = "$(body_hash "$f")" ] && echo clean || echo edited
 }
 
 cmd_status() {
-  local f n repo path ref sha cur st
+  local f n sha cur st
   while read -r f; do
     [ -n "$f" ] || continue
     n="${f#$ROOT/}"
-    repo=$(fm_get "$f" repo); path=$(fm_get "$f" path)
-    ref=$(fm_get "$f" ref); sha=$(fm_get "$f" sha)
-    ref="${ref:-main}"
-    [ -n "$repo" ] || { printf '%-34s no repo pinned\n' "$n"; continue; }
-    cur=$(remote_sha "$repo" "$path" "$ref")
+    sha=$(fm_get "$f" sha)
+    [ -n "$(src_label "$f")" ] || { printf '%-34s no source pinned\n' "$n"; continue; }
+    cur=$(remote_sha "$f")
     st=$(local_state "$f")
     if [ -z "$cur" ]; then
       printf '%-34s %s\n' "$n" "upstream unreachable"
@@ -130,11 +202,11 @@ cmd_status() {
 }
 
 cmd_diff() {
-  local f="$1" repo path sha base mine
+  local f="$1" sha base mine
   [ -f "$f" ] || die "no such file: $f"
-  repo=$(fm_get "$f" repo); path=$(fm_get "$f" path); sha=$(fm_get "$f" sha)
-  [ -n "$repo" ] || die "no upstream: block in $f"
-  base=$(mktemp); fetch_at "$repo" "$path" "$sha" > "$base"
+  sha=$(fm_get "$f" sha)
+  [ -n "$(src_label "$f")" ] || die "no upstream: block in $f"
+  base=$(mktemp); fetch_at "$f" "$sha" > "$base"
   [ -s "$base" ] || { rm -f "$base"; die "base sha $sha unreachable (force-push? deleted?)"; }
   # Compare without our own upstream: block, so the diff shows only real edits.
   mine=$(mktemp); strip_upstream "$f" > "$mine"
@@ -143,30 +215,38 @@ cmd_diff() {
 }
 
 cmd_pull() {
-  local f="$1" repo path ref sha cur base new merged rc st
+  local f="$1" sha cur base new merged rc st
   [ -f "$f" ] || die "no such file: $f"
-  repo=$(fm_get "$f" repo); path=$(fm_get "$f" path)
-  ref=$(fm_get "$f" ref); sha=$(fm_get "$f" sha); ref="${ref:-main}"
-  [ -n "$repo" ] || die "no upstream: block in $f"
+  sha=$(fm_get "$f" sha)
+  [ -n "$(src_label "$f")" ] || die "no upstream: block in $f"
 
-  cur=$(remote_sha "$repo" "$path" "$ref")
-  [ -n "$cur" ] || die "cannot reach $repo"
+  cur=$(remote_sha "$f")
+  [ -n "$cur" ] || die "cannot reach $(src_label "$f")"
   if [ "$cur" = "$sha" ]; then echo "already at ${cur:0:8}"; return 0; fi
 
   st=$(local_state "$f")
-  new=$(mktemp); fetch_at "$repo" "$path" "$cur" > "$new"
-  [ -s "$new" ] || { rm -f "$new"; die "could not fetch $cur"; }
+  new=$(mktemp); fetch_at "$f" "$cur" > "$new"
+  # A gist sha advances when ANY file in it changes, so an unreachable or
+  # identical fetch here is normal rather than an error: this file did not move.
+  if [ ! -s "$new" ]; then
+    rm -f "$new"
+    if [ "$(src_kind "$f")" = gist ]; then
+      warn "gist moved to ${cur:0:8} but $(fm_get "$f" file) is absent there; not pulling"
+      return 1
+    fi
+    die "could not fetch $cur"
+  fi
 
   if [ "$st" = clean ]; then
     # Case 2: clean local, upstream moved -> overwrite, no merge possible.
     cp "$new" "$f"
-    stamp "$f" "$repo" "$path" "$ref" "$cur" "$(shasum -a 256 < "$new" | cut -d' ' -f1)"
+    stamp "$f" "$cur" "$(norm "$new" | hash_stream)"
     echo "updated (clean overwrite) -> ${cur:0:8}"
     rm -f "$new"; return 0
   fi
 
   # Case 4: both moved -> three-way merge with the pinned sha as base.
-  base=$(mktemp); fetch_at "$repo" "$path" "$sha" > "$base"
+  base=$(mktemp); fetch_at "$f" "$sha" > "$base"
   if [ ! -s "$base" ]; then
     rm -f "$base" "$new"
     warn "base sha $sha unreachable; not merging. Review manually:"
@@ -178,7 +258,7 @@ cmd_pull() {
     "$merged" "$base" "$new"
   rc=$?
   cp "$merged" "$f"
-  stamp "$f" "$repo" "$path" "$ref" "$cur" "$(shasum -a 256 < "$new" | cut -d' ' -f1)"
+  stamp "$f" "$cur" "$(norm "$new" | hash_stream)"
   if [ "$rc" -eq 0 ]; then
     echo "merged cleanly -> ${cur:0:8}"
   else
@@ -188,30 +268,32 @@ cmd_pull() {
   [ "$rc" -eq 0 ]
 }
 
-strip_upstream() {
-  awk '
-    NR==1 && $0=="---" { in_fm=1; print; next }
-    in_fm && $0=="---" { in_fm=0; print; next }
-    in_fm && /^upstream:[[:space:]]*$/ { in_up=1; next }
-    in_up && /^[[:space:]]/ { next }
-    in_up { in_up=0 }
-    { print }
-  ' "$1"
-}
+strip_upstream() { norm "$1"; }
 
-stamp() { # file repo path ref sha [pristine_hash]
+stamp() { # file sha [pristine_hash]
   # content_hash records the hash of PRISTINE UPSTREAM at this sha, not of the
   # local file. Comparing the local body against it is what detects local edits;
   # hashing the local file here would make every file look clean forever.
-  local f="$1" tmp h
+  #
+  # Source coordinates (repo/path/ref, or gist/file) are preserved verbatim from
+  # the existing block: only sha, checked, and content_hash advance on a pull.
+  local f="$1" tmp h coords
   tmp=$(mktemp)
   strip_upstream "$f" > "$tmp"
-  h="${6:-$(shasum -a 256 < "$tmp" | cut -d' ' -f1)}"
+  h="${3:-$(hash_stream < "$tmp")}"
+  if [ "$(src_kind "$f")" = gist ]; then
+    coords=$(printf '  gist: %s\n  file: %s\n' \
+      "$(fm_get "$f" gist)" "$(fm_get "$f" file)")
+  else
+    coords=$(printf '  repo: %s\n  path: %s\n  ref: %s\n' \
+      "$(fm_get "$f" repo)" "$(fm_get "$f" path)" "$(fm_get "$f" ref)")
+  fi
   {
     head -1 "$tmp"
     sed -n '2,$p' "$tmp" | sed '/^---$/q' | sed '$d'
-    printf 'upstream:\n  repo: %s\n  path: %s\n  ref: %s\n  sha: %s\n  checked: %s\n  content_hash: %s\n' \
-      "$2" "$3" "$4" "$5" "$(date +%Y-%m-%d)" "$h"
+    printf 'upstream:\n%s\n' "$coords"
+    printf '  sha: %s\n  checked: %s\n  content_hash: %s\n' \
+      "$2" "$(date +%Y-%m-%d)" "$h"
     echo '---'
     awk 'NR==1&&$0=="---"{f=1;next} f&&$0=="---"{f=0;next} !f' "$tmp"
   } > "$f"

@@ -39,24 +39,45 @@ The bootstrap auto-detects the platform, installs prereqs (Xcode CLT / git), clo
 ## Working on this repo
 
 This repo is **public**. Don't work directly on `main` — default to a
-per-device branch instead:
+per-device branch instead, and stay there permanently:
 
 ```bash
 git switch -c "device/$(hostname -s)"     # or: git switch -c "device/$(scutil --get LocalHostName)" on macOS
 ```
 
 Everything lives on that branch first, including work-specific or
-machine-local config — it's never pushed. Only promote a change to `main`
-once it's genuinely portable and safe to publish:
+machine-local config — it's never pushed, and this checkout is never
+branch-switched back to `main`. `main` gets its own permanent, linked
+worktree instead, set up once:
 
 ```bash
-agents/skills/dotconfig-branching/scripts/promote.sh <path> [<path>...]
+agents/skills/dotconfig-branching/scripts/worktree-add.sh ~/.config-main main
 ```
 
-`promote.sh` checks out just those paths from your device branch onto `main`,
-runs `vet.sh` (checks for internal hostnames, credential-shaped strings,
-force-added ignored files, absolute home paths) against the staged diff,
-commits, then rebases your device branch back onto the updated `main`. It
-stops before `git push` — publishing stays a manual, reviewed step.
+(This wraps `git worktree add` plus a fix for a git-crypt limitation with
+linked worktrees — see `SKILL.md` for why it's needed.)
+
+Only promote a change to `main` once it's genuinely portable and safe to
+publish:
+
+```bash
+agents/skills/dotconfig-branching/scripts/publish.sh <path> [<path>...]
+agents/skills/dotconfig-branching/scripts/publish.sh -m "msg" <path>...
+agents/skills/dotconfig-branching/scripts/publish.sh --no-push <path>...
+```
+
+`publish.sh` wraps `promote.sh`, which checks out just those paths from your
+device branch into main's worktree, runs `vet.sh` (checks for internal
+hostnames, credential-shaped strings, force-added ignored files, absolute home
+paths) against the staged diff, commits there, then cherry-picks that commit
+back onto your device branch so it stays a superset of what's public.
+`publish.sh` then pushes `main` and verifies that superset property.
+
+Run `promote.sh` directly, or `publish.sh --no-push`, when you'd rather review
+before publishing — `promote.sh` stops before `git push` and prints the command.
+
+Neither one rebases your device branch onto `main`: the two branches share no
+common ancestor after a past history scrub, so a rebase would replay your whole
+branch against unrelated commits. The cherry-pick is what keeps device ahead.
 
 Full details: `agents/skills/dotconfig-branching/SKILL.md`.

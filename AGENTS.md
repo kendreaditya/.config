@@ -23,20 +23,45 @@ so there is no such thing as a private branch — a branch is private only for
 as long as it is never pushed. The workflow makes "never pushed" the default:
 
 ```
-device/<hostname>   ← work here. NEVER pushed. Everything lives here first,
-                       including work + machine-local config.
+device/<hostname>   ← you live here, permanently. NEVER pushed. Everything
+                       lives here first, including work + machine-local config.
 main                 ← tracks origin/main. Only vetted, portable, non-
                        sensitive config ever lands here. The public face.
 ```
 
-Default to a device branch (`git switch -c "device/$(hostname -s)"`); commit
-there freely. To publish something, run
-`agents/skills/dotconfig-branching/scripts/promote.sh <path>...` — it checks
-out just those paths onto `main`, runs `vet.sh` against the staged diff
-(internal hostnames, credential-shaped strings, force-added ignored files,
-absolute home paths), commits, then rebases the device branch back onto the
-updated `main`. It stops before `git push`; publishing stays a manual,
-reviewed step. Never `git push`, `--all`, or `--mirror` from a device branch.
+`~/.config` stays checked out on `device/<hostname>` at all times — this
+checkout is never branch-switched. `main` lives in its own permanent, linked
+`git worktree` (typically `~/.config-main`), used only for staging and
+committing promotions; nothing is ever edited there directly. Set it up once
+with `agents/skills/dotconfig-branching/scripts/worktree-add.sh <path> main`.
+
+That script exists because of a real git-crypt 0.8.0 limitation: git-crypt's
+clean/smudge filter resolves its key via the *calling worktree's own* git-dir
+(`.git/worktrees/<name>/`), which a linked worktree never populates — so a
+plain `git worktree add` on a repo with git-crypt paths fails outright, and
+so would `git-crypt unlock` run directly inside the new worktree, even though
+the key is correctly present in the shared common `.git/git-crypt/keys/`.
+`worktree-add.sh` works around it: `git worktree add --no-checkout`, symlink
+the worktree's own git-dir `git-crypt/` to the shared one, then checkout.
+
+To publish something, run
+`agents/skills/dotconfig-branching/scripts/publish.sh <path>...` from the
+device worktree. It wraps `promote.sh`, which checks out just those paths into
+main's worktree, runs `vet.sh` against the staged diff (internal hostnames,
+credential-shaped strings, force-added ignored files, absolute home paths),
+commits there, then cherry-picks that one commit back onto the device branch so
+it stays a superset of what's public. `publish.sh` adds the two steps
+`promote.sh` deliberately leaves out: pushing `main`, and verifying the superset
+property afterwards. Use `promote.sh` directly (it stops before `git push`) when
+you want to review before publishing; `--no-push` on `publish.sh` does the same.
+
+Neither script rebases the device branch onto main, and neither should be
+changed to: the two branches share **no common ancestor** — main's root commit
+was rewritten by a past `git-filter-repo` history scrub, so replaying this
+branch's full history against it can hit unresolvable conflicts on
+git-crypt-encrypted binaries. The cherry-pick is what keeps device a superset.
+
+Never `git push`, `--all`, or `--mirror` from a device branch.
 Full detail: `agents/skills/dotconfig-branching/SKILL.md`.
 
 ## agents/ layout

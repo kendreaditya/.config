@@ -38,18 +38,36 @@ fi
 # terms: one grep -E pattern fragment per line, blank lines and lines
 # starting with # ignored. See .vet-terms.local.example for the format.
 # If the file is missing, only the small always-safe generic set below runs.
-terms_file="$root/.vet-terms.local"
+#
+# Look in the MAIN worktree AND every other worktree of this repo. The file is
+# gitignored, so it exists only where it was created -- normally the device
+# worktree. But promote.sh runs vet.sh with cwd set to main's worktree, where
+# show-toplevel resolves to that directory and the file is absent: the org-term
+# check silently degraded to the generic set at exactly the moment it mattered
+# most, and reported PASS. VET_TERMS_FILE overrides the search.
+terms_file=""
+if [ -n "${VET_TERMS_FILE:-}" ]; then
+  terms_file="$VET_TERMS_FILE"
+  [ -f "$terms_file" ] || { echo "vet.sh: VET_TERMS_FILE set but not readable: $terms_file" >&2; exit 2; }
+elif [ -f "$root/.vet-terms.local" ]; then
+  terms_file="$root/.vet-terms.local"
+else
+  while IFS= read -r wt; do
+    [ -n "$wt" ] || continue
+    if [ -f "$wt/.vet-terms.local" ]; then terms_file="$wt/.vet-terms.local"; break; fi
+  done < <(git worktree list --porcelain | sed -n 's/^worktree //p')
+fi
 # Deliberately narrow: bare "internal."/"corp." substrings are common enough
 # in ordinary prose/comments (this file's own comments trip a naive ".local"
 # suffix match, for instance) that a broader generic set would be noisy
 # rather than useful. Anchored to look like part of a real hostname/URL.
 generic_terms='https?://[a-z0-9.-]*\.(internal|corp)\.[a-z]{2,}'
-if [ -f "$terms_file" ]; then
+if [ -n "$terms_file" ]; then
   org_terms=$(grep -vE '^\s*(#|$)' "$terms_file" | paste -sd'|' -)
   pattern="${generic_terms}${org_terms:+|${org_terms}}"
 else
   pattern="$generic_terms"
-  report WARN "no .vet-terms.local found -- only generic hostname patterns are checked."
+  report WARN "no .vet-terms.local found in any worktree -- only generic hostname patterns are checked."
   report WARN "Copy .vet-terms.local.example to .vet-terms.local and add your org's internal service/tool names."
 fi
 if hits=$(git diff --cached -U0 | grep -niE "^\+.*(${pattern})" | grep -vE '^[0-9]+:\+\+\+'); then
@@ -61,8 +79,12 @@ if hits=$(git diff --cached -U0 | grep -nE '^\+.*(sk-[A-Za-z0-9]{20,}|gh[pousr]_
   report FAIL "possible credential material:"; echo "$hits" | cut -c1-160; findings=1
 fi
 
-# 5. git-crypt fail-open check
-if ! ls .git/git-crypt/keys >/dev/null 2>&1; then
+# 5. git-crypt fail-open check. Use --git-common-dir, not a hardcoded
+# .git/git-crypt/keys -- in a linked worktree .git is a file (a pointer to
+# .git/worktrees/<name>/), not a directory, so the hardcoded path always
+# reports "locked" there even when correctly unlocked at the shared common dir.
+common_dir="$(git rev-parse --git-common-dir)"
+if ! ls "$common_dir/git-crypt/keys" >/dev/null 2>&1; then
   report WARN "git-crypt is LOCKED — encrypted paths would commit as PLAINTEXT."
   report WARN "The .githooks/pre-commit hook blocks this; do not bypass with --no-verify."
 fi
