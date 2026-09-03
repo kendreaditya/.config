@@ -112,13 +112,50 @@ device branch is a superset of public for the promoted paths. Both run `vet.sh`;
 neither can skip it, since `publish.sh` reaches the push only if `promote.sh`
 exits 0.
 
-`publish.sh` **does not rebase the device branch onto main**, despite the shape
-of the request it usually answers. The two branches share *no common ancestor*
-(`git merge-base` returns nothing) because main's root commit was rewritten by
-a past `git-filter-repo` scrub — a rebase would replay the device branch's
-entire history against unrelated commit objects. `promote.sh`'s cherry-pick
-already achieves the real goal, so `publish.sh` verifies the superset property
-instead of recreating it.
+`publish.sh` **does not rebase the device branch onto main**, and does not need
+to. Since the 2026-09-03 reconciliation `main` is a strict ancestor of the
+device branch, so `promote.sh`'s cherry-pick keeps device a superset and
+`publish.sh` just verifies that property rather than recreating it.
+
+### If `git merge-base main <device>` ever returns nothing
+
+That is the broken state this repo was in until 2026-09-03, and it is worth
+recognising because the cause is non-obvious. main's root commit lost its GPG
+signature during a `git-filter-repo` secret scrub. A commit's hash covers its
+signature, and every child's hash covers its parent's, so that single change
+re-hashed **all 182 otherwise byte-identical commits** below it. The branches
+were content-identical twins that git considered unrelated: `merge-base`
+returned nothing, `git log main..device` was meaningless, and `git rebase main`
+would have replayed the whole branch against unrelated objects.
+
+The repair is `scripts/reconcile-device.sh`:
+
+```bash
+scripts/reconcile-device.sh                 # plan only
+scripts/reconcile-device.sh --run           # build + verify in a scratch worktree
+scripts/reconcile-device.sh --run --adopt    # ...and move the device branch onto it
+```
+
+It finds the fork point by **content** (last position where trees and subjects
+agree, since hashes are useless here), then rebuilds the device branch as main's
+tip plus only its genuinely-device-only commits — filtered by patch-id via
+`git cherry`, which here dropped 22 of 51 as content-duplicates of main's
+rewritten versions.
+
+**The gate is tree equality**: the rebuilt tree must byte-match the current
+device tree, or it refuses to adopt. Same files, better ancestry. That check is
+the whole safety property, and it earned its keep three times — it caught a
+date-based commit filter that would have deleted 8,512 lines of work-only
+config, a skip rule that inspected only *conflicted* files and lost 177 lines of
+`upstream:` provenance from 15 skills, and a manual `rm` loop that mangled
+submodule gitlinks. A backup tag is written before the branch moves; the script
+prints the one-line undo.
+
+Two conflict classes resolve automatically, both re-checked by the gate: a
+commit whose **every** touched file is already identical on main and device (a
+superseded intermediate — skipped), and a device-owned path like `.env` or
+`.zshrc` (device's copy taken). Anything else stops and hands you the scratch
+worktree.
 
 Run these from the device branch's worktree (`~/.config`) — never from main's.
 `promote.sh` refuses to start from main's worktree or a dirty tree, aborts and

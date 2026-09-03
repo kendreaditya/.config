@@ -55,11 +55,16 @@ it stays a superset of what's public. `publish.sh` adds the two steps
 property afterwards. Use `promote.sh` directly (it stops before `git push`) when
 you want to review before publishing; `--no-push` on `publish.sh` does the same.
 
-Neither script rebases the device branch onto main, and neither should be
-changed to: the two branches share **no common ancestor** — main's root commit
-was rewritten by a past `git-filter-repo` history scrub, so replaying this
-branch's full history against it can hit unresolvable conflicts on
-git-crypt-encrypted binaries. The cherry-pick is what keeps device a superset.
+Neither script rebases the device branch onto main, and neither needs to: since
+the 2026-09-03 reconciliation, `main` is a strict ancestor of the device branch,
+so the cherry-pick keeps device a superset without replaying anything. Before
+that, the two branches shared **no common ancestor** at all — main's root commit
+lost its GPG signature during a `git-filter-repo` secret scrub, and because a
+commit's hash covers its signature (and every child's covers its parent's), that
+single change re-hashed all 182 otherwise-identical commits below it. If that
+ever recurs, `agents/skills/dotconfig-branching/scripts/reconcile-device.sh`
+rebuilds the device branch on main and refuses to adopt unless the resulting
+tree byte-matches the current one.
 
 Never `git push`, `--all`, or `--mirror` from a device branch.
 Full detail: `agents/skills/dotconfig-branching/SKILL.md`.

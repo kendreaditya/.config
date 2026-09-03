@@ -18,13 +18,12 @@
 # Nothing here bypasses vet.sh. If vet.sh fails, promote.sh unstages and aborts,
 # and this script exits without pushing anything.
 #
-# On "rebase": this repo's device branch and main share NO COMMON ANCESTOR --
-# main's root commit was rewritten by a past git-filter-repo history scrub, so
-# `git rebase main` would replay the device branch's entire history against
-# unrelated commit objects and can hit unresolvable conflicts on git-crypt
-# binaries. promote.sh's cherry-pick achieves the actual goal (device stays a
-# superset of public) without that risk, so this script verifies the superset
-# property instead of rebasing. See dotconfig-branching/SKILL.md.
+# On "rebase": this script does not rebase the device branch onto main, and does
+# not need to -- since the 2026-09-03 reconciliation main is a strict ancestor of
+# the device branch, so promote.sh's cherry-pick keeps device a superset and this
+# script only verifies that. If `git merge-base main <device>` ever returns
+# nothing again, that is the signature-stripped-root problem; run
+# reconcile-device.sh rather than rebasing. See dotconfig-branching/SKILL.md.
 set -uo pipefail
 
 die()  { printf '\n%s\n' "$*" >&2; exit 1; }
