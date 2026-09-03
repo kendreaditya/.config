@@ -76,9 +76,13 @@ back onto your device branch so it stays a superset of what's public.
 Run `promote.sh` directly, or `publish.sh --no-push`, when you'd rather review
 before publishing — `promote.sh` stops before `git push` and prints the command.
 
-Neither one rebases your device branch onto `main`, and neither needs to —
-`main` is a strict ancestor of the device branch, so the cherry-pick keeps
-device a superset. If `git merge-base main <device>` ever comes back empty, run
+Neither one rebases your device branch onto `main`, and neither needs to — the
+cherry-pick is what keeps device a superset. Expect `main` to read as a few
+commits "ahead" between reconciles: a cherry-pick copies its commit rather than
+moving it, so the hashes diverge even though the content matches. Only the
+promoted paths need to agree, and `publish.sh` checks those.
+
+If `git merge-base main <device>` ever comes back empty, run
 `agents/skills/dotconfig-branching/scripts/reconcile-device.sh` instead of
 rebasing; it rebuilds the device branch on main and refuses to adopt unless the
 resulting tree byte-matches the current one.

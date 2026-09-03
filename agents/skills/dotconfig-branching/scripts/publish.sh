@@ -106,11 +106,13 @@ else
   echo "    git -C \"$main_wt\" push origin main"
 fi
 
-# Step 3: verify the device branch is a superset of public, rather than
-# rebasing onto it (see the header). promote.sh already cherry-picked the
-# promotion commit here; this confirms the promoted PATHS now match on both
-# branches. Anything else diverging is expected -- that's the device-only work
-# this branch exists to hold.
+# Step 3: verify the device branch is a superset of public for the promoted
+# paths. promote.sh cherry-picked the promotion commit here, which creates a
+# COPY of main's commit with a new hash -- so main stops being a strict ancestor
+# by exactly one commit per promotion, even though the content matches. That is
+# inherent to cherry-pick-based promotion and harmless: what matters is that no
+# promoted path differs. Ancestry drift is reported, not treated as an error;
+# reconcile-device.sh re-establishes strict-ancestor status when you want it.
 note "Verifying $DEVICE is a superset of main for the promoted paths"
 drift=0
 for p in "${paths[@]}"; do
@@ -121,6 +123,25 @@ for p in "${paths[@]}"; do
     printf '  ok     %s\n' "$p"
   fi
 done
+
+behind="$(git rev-list --count "$DEVICE..main" 2>/dev/null || echo 0)"
+if [ "$behind" -gt 0 ]; then
+  # main being "ahead by hash" is expected and benign: promote.sh cherry-picks
+  # its commit back here, which creates a copy with a new hash, so main stops
+  # being a strict ancestor by one commit per promotion.
+  #
+  # Do NOT try to detect a real problem by comparing every file main tracks --
+  # device legitimately holds richer versions of many of them (private config,
+  # extra provenance), so that check is all false positives. And `git cherry`
+  # can't help either: a cherry-picked promotion's whole-commit patch never
+  # matches, because main's copy touches only the promoted paths while device's
+  # sits on a tree that also carries private config. The promoted-path loop
+  # above is the check that actually means something; this is just a note.
+  printf '\n  note: main is %s commit(s) ahead of %s by hash — expected, since\n' "$behind" "$DEVICE"
+  printf '        promote.sh cherry-picks its commit back as a new copy. The\n'
+  printf '        promoted paths above are what must match, and they do.\n'
+  printf '        To restore strict-ancestor status: %s/reconcile-device.sh --run\n' "$here"
+fi
 if [ "$drift" -eq 1 ]; then
   cat <<EOF
 

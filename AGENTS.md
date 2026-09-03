@@ -55,16 +55,19 @@ it stays a superset of what's public. `publish.sh` adds the two steps
 property afterwards. Use `promote.sh` directly (it stops before `git push`) when
 you want to review before publishing; `--no-push` on `publish.sh` does the same.
 
-Neither script rebases the device branch onto main, and neither needs to: since
-the 2026-09-03 reconciliation, `main` is a strict ancestor of the device branch,
-so the cherry-pick keeps device a superset without replaying anything. Before
-that, the two branches shared **no common ancestor** at all — main's root commit
-lost its GPG signature during a `git-filter-repo` secret scrub, and because a
-commit's hash covers its signature (and every child's covers its parent's), that
-single change re-hashed all 182 otherwise-identical commits below it. If that
-ever recurs, `agents/skills/dotconfig-branching/scripts/reconcile-device.sh`
-rebuilds the device branch on main and refuses to adopt unless the resulting
-tree byte-matches the current one.
+Neither script rebases the device branch onto main, and neither needs to: the
+cherry-pick is what keeps device a superset. Since the 2026-09-03
+reconciliation the two branches do share history again, though main sits "ahead
+by hash" by one commit per promotion — a cherry-pick copies the commit rather
+than moving it, so strict-ancestor status decays as you publish. That is benign;
+only the promoted paths need to match. Before that reconciliation the branches
+shared **no common ancestor at all**: main's root commit lost its GPG signature
+during a `git-filter-repo` secret scrub, and because a commit's hash covers its
+signature (and every child's covers its parent's), that single change re-hashed
+all 182 otherwise-identical commits below it. If that recurs, or you want strict
+ancestry back, `agents/skills/dotconfig-branching/scripts/reconcile-device.sh`
+rebuilds the device branch on main and refuses to adopt unless the resulting tree
+byte-matches the current one.
 
 Never `git push`, `--all`, or `--mirror` from a device branch.
 Full detail: `agents/skills/dotconfig-branching/SKILL.md`.

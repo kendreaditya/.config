@@ -113,9 +113,25 @@ neither can skip it, since `publish.sh` reaches the push only if `promote.sh`
 exits 0.
 
 `publish.sh` **does not rebase the device branch onto main**, and does not need
-to. Since the 2026-09-03 reconciliation `main` is a strict ancestor of the
-device branch, so `promote.sh`'s cherry-pick keeps device a superset and
-`publish.sh` just verifies that property rather than recreating it.
+to. `promote.sh`'s cherry-pick is what keeps device a superset; `publish.sh` just
+verifies that the promoted paths match on both branches.
+
+Expect main to sit "ahead by hash" between reconciles. A cherry-pick creates a
+*copy* of main's promotion commit with a new hash, so each promotion costs one
+commit of strict-ancestor status even though the content is identical. That is
+inherent to path-scoped promotion and harmless — `publish.sh` reports it as a
+note. `reconcile-device.sh` restores strict-ancestor status whenever you want it.
+
+Two checks that look useful here are not, and both were tried:
+
+- **Comparing every file main tracks** is all false positives — device
+  legitimately holds richer versions of many of them (private config, extra
+  `upstream:` provenance).
+- **`git cherry device main`** always flags a cherry-picked promotion as missing,
+  because main's copy touches only the promoted paths while device's copy sits on
+  a tree that also carries private config, so the whole-commit patches differ.
+
+The promoted-path diff is the only check that means anything.
 
 ### If `git merge-base main <device>` ever returns nothing
 
