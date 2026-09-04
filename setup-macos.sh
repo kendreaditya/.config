@@ -138,9 +138,24 @@ fi
 #     unblock, and an LLM tool may additionally need software-onboarding approval
 #     before use with company data. (Machine-specific rule IDs and internal ticket
 #     URLs deliberately omitted — see the device branch for those.)
+#
+# vorssaint (github.com/vorssaint/vorssaint-utils) is a menu bar toolkit that
+# overlaps some of what's already on the menu-bar line: it ships its own
+# keep-awake (vs caffeine) and menu-bar-item hiding (vs hiddenbar), plus a system
+# monitor and per-app volume mixer neither of those covers. Nothing is removed
+# here on purpose — caffeine has the dequarantine/launch-copy workaround below
+# that a replacement would have to re-earn, so run them side by side and only
+# retire the older ones once vorssaint's equivalents prove out.
+#
+# NOTE: this cask declares `arm64` and `macOS >= 14` as hard requirements. On an
+# Intel Mac or anything older than Sonoma, brew refuses it — and per the batch
+# failure mode described above, that refusal takes every other cask in this call
+# down with it. Drop `vorssaint` from the line if this script is ever run on such
+# a machine. The cask is also auto_updates, so the app self-updates in place and
+# `brew upgrade` will not move its version.
 brew install --cask --force --appdir="$HOME/Applications" \
   raycast todoist zoom alt-tab bruno \
-  hiddenbar thaw caffeine blackhole-2ch ollama \
+  hiddenbar thaw caffeine vorssaint blackhole-2ch ollama \
   visual-studio-code google-chrome warp ghostty logseq obsidian \
   claude whatsapp \
   protonvpn cloudflare-warp iina windows-app
