@@ -21,6 +21,14 @@ metadata:
           ],
       },
   }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/apple-reminders/SKILL.md
+  ref: main
+  sha: c33375f8433967aabdb5b5978f5da10d6e384a82
+  license: MIT
+  checked: 2026-09-05
+  content_hash: 2e1ee192024e95131eccdab8222d5e262898a2b6f2fa4e5bfc52773376497489
 ---
 
 # Apple Reminders CLI (remindctl)

@@ -1,6 +1,14 @@
 ---
 name: legacy-modernization
 description: Modernize legacy systems without rewriting from scratch. Use strangler fig, facade, and strategic refactoring.
+upstream:
+  repo: sethdford/claude-skills
+  path: architect/decision-making/skills/legacy-modernization/SKILL.md
+  ref: main
+  sha: 600263db918de2e7993e24a0716f8475d7c428af
+  license: MIT
+  checked: 2026-09-05
+  content_hash: 7f257c3d091d5fb1ec3b2cee7ae973e4fdd434ee0a234844d87168b1204f6fd1
 ---
 
 # Legacy Modernization

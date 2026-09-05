@@ -2,6 +2,14 @@
 name: session-logs
 description: Search and analyze your own session logs (older/parent conversations) using jq.
 metadata: { "openclaw": { "emoji": "📜", "requires": { "bins": ["jq", "rg"] } } }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/session-logs/SKILL.md
+  ref: main
+  sha: d3e53eaf276077530679901ebae00d3e94f2eb78
+  license: MIT
+  checked: 2026-09-05
+  content_hash: 7c6a007031f8c13621ee2ad2188798e7745afac24932fb7be0b57ad1a36464cc
 ---
 
 # session-logs

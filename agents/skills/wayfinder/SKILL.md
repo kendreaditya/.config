@@ -8,7 +8,7 @@ upstream:
   ref: main
   sha: 321658273cb1d20b76026717d027d505790106d4
   license: MIT
-  checked: 2026-08-22
+  checked: 2026-09-05
   content_hash: fee6e1d0c50f0e736b4ef8a599060c959afae904c9a97d82c97f049fcc3aa0f1
 ---
 

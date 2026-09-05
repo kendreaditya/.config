@@ -1,6 +1,14 @@
 ---
 name: performance-optimization
 description: Optimizes application performance. Use when performance requirements exist, when you suspect performance regressions, or when Core Web Vitals or load times need improvement. Use when profiling reveals bottlenecks that need fixing.
+upstream:
+  repo: addyosmani/agent-skills
+  path: skills/performance-optimization/SKILL.md
+  ref: main
+  sha: 91d4d07522de9577caf5d213e5bf1acc38fa3df2
+  license: MIT
+  checked: 2026-09-05
+  content_hash: e2def7de6cfcdaa6577f4f76839a4001c42c947eb636395b27c450d514ddd188
 ---
 
 # Performance Optimization

@@ -19,6 +19,13 @@ compatibility: >
   lualatex (texlive-luatex, complex typography), tectonic (self-contained TeX workflow),
   pdflatex (texlive-latex-base, fastest for ASCII), weasyprint (CSS Paged Media, Python-based),
   wkhtmltopdf (WebKit-based HTML/CSS rendering), prince (commercial HTML/CSS renderer).
+upstream:
+  repo: hrkltz/pandoc-skill
+  path: pandoc/SKILL.md
+  ref: main
+  sha: db1bfdb7f728492cce0205fd6cbf6151b80027f0
+  checked: 2026-09-05
+  content_hash: f6a6e44754effe3b2c5ba21d1150a73634d910a779ca1b72750dc76f622ac87e
 ---
 
 # Pandoc Document Converter

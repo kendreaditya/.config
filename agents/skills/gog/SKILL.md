@@ -20,6 +20,14 @@ metadata:
           ],
       },
   }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/gog/SKILL.md
+  ref: main
+  sha: 76b5208b11eebf2071ad5a363666467417ea5792
+  license: MIT
+  checked: 2026-09-05
+  content_hash: ceb5ee5bb4f0b9016694ed709180399fc75214b7b91a958e1aae1e1a351cb0b6
 ---
 
 # gog

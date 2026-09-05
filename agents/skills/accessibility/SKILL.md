@@ -3,6 +3,14 @@ name: accessibility
 description: Design, implement, and audit inclusive digital products using WCAG 2.2 Level AA
   standards. Use this skill to generate semantic ARIA for Web and accessibility traits for Web and Native platforms (iOS/Android).
 origin: ECC
+upstream:
+  repo: affaan-m/ECC
+  path: skills/accessibility/SKILL.md
+  ref: main
+  sha: d29cf651c795869f733669c33e3d33dfd8307d10
+  license: MIT
+  checked: 2026-09-05
+  content_hash: d8578fe750e7321658450386e2112a46ea1aedca0235fbf97f3db2457e599b3a
 ---
 
 # Accessibility (WCAG 2.2)

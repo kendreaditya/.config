@@ -26,6 +26,14 @@ metadata:
           ],
       },
   }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/github/SKILL.md
+  ref: main
+  sha: 76b5208b11eebf2071ad5a363666467417ea5792
+  license: MIT
+  checked: 2026-09-05
+  content_hash: b1dfa8cd04bc7d1c59efcf6a9540ca5dbf62365b7af8ae427af6fb88001dcb96
 ---
 
 # GitHub Skill

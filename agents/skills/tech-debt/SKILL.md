@@ -1,6 +1,14 @@
 ---
 name: tech-debt
 description: Identify, categorize, and prioritize technical debt. Trigger with "tech debt", "technical debt audit", "what should we refactor", "code health", or when the user asks about code quality, refactoring priorities, or maintenance backlog.
+upstream:
+  repo: anthropics/knowledge-work-plugins
+  path: engineering/skills/tech-debt/SKILL.md
+  ref: main
+  sha: 4fa3cb92e2942d6594200fa8d2c800708e086072
+  license: Apache-2.0
+  checked: 2026-09-05
+  content_hash: ed3b4b1450c0fd9b8dad17313b5a4fafd8e6947d380b79b36a2e8259f3b1df0f
 ---
 
 # Tech Debt Management

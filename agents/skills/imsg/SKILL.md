@@ -21,6 +21,14 @@ metadata:
           ],
       },
   }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/imsg/SKILL.md
+  ref: main
+  sha: 76b5208b11eebf2071ad5a363666467417ea5792
+  license: MIT
+  checked: 2026-09-05
+  content_hash: 3d586eca3ca11c868985d4e266451e65515dbc20aaf54343706363fe10ae8458
 ---
 
 # imsg

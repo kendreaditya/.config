@@ -6,7 +6,8 @@
 #   agents/harness/<name>/...                per-harness config (settings, prompts)
 #
 # Shared content is symlinked into every harness; harness/<name>/ only into that
-# harness. Idempotent — safe to re-run. Currently wires claude + codex.
+# harness. Idempotent — safe to re-run. Currently wires the shared Agent Skills
+# location plus Claude Code, Codex, and Pi.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -36,6 +37,13 @@ link() {
   log "linked   ${linkpath/#$HOME/~} -> ${target/#$HOME/~}"
 }
 
+# ---------------------------------------------------------- shared agent skills
+# Pi discovers ~/.agents/skills natively. Other Agent Skills-compatible tools
+# can use it too, so point it at the same canonical collection instead of
+# maintaining a copied directory that can drift.
+echo "agent skills:"
+link "$AGENTS/skills" "$HOME/.agents/skills"
+
 # ---------------------------------------------------------------- claude code
 # Claude reads skills/commands/agents/memory as directories directly under
 # ~/.claude, and its settings/prompt files at fixed names there.
@@ -62,9 +70,18 @@ link "$AGENTS/memory"                     "$CODEX_DIR/memory"
 link "$AGENTS/harness/codex/AGENTS.md"    "$CODEX_DIR/AGENTS.md"
 link "$AGENTS/harness/codex/agents"       "$CODEX_DIR/agents"
 
+# ------------------------------------------------------------------------- pi
+# Pi discovers shared skills through ~/.agents/skills above. Only its global
+# context file is harness-specific; settings.json remains machine-local because
+# it can contain provider and extension configuration.
+echo "pi:"
+PI_DIR="$HOME/.pi/agent"
+link "$AGENTS/harness/pi/AGENTS.md" "$PI_DIR/AGENTS.md"
+
 # NOTE: ~/.codex/config.toml is intentionally NOT linked. It mixes MCP config
 # with mutable session state (auth tokens, per-project history), same reason
-# ~/.claude.json is untracked. Manage it via `codex mcp` / setup-macos.sh.
+# ~/.claude.json and ~/.pi/agent/settings.json are untracked. Manage them with
+# their respective harnesses and setup scripts.
 
 echo
 echo "done. re-run anytime; nothing is destructive to real files."

@@ -20,6 +20,13 @@ metadata:
           ],
       },
   }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/mcporter/SKILL.md
+  ref: main
+  sha: decbd611a0928625af9d3d6ea7325ed49da17347
+  checked: 2026-09-05
+  content_hash: 010ed9b265e58d45d1e95e6deac5e60b1e46e6ebab00fc3fe30429a1048e236e
 ---
 
 # mcporter

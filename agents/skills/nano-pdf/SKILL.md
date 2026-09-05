@@ -20,6 +20,14 @@ metadata:
           ],
       },
   }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/nano-pdf/SKILL.md
+  ref: main
+  sha: 76b5208b11eebf2071ad5a363666467417ea5792
+  license: MIT
+  checked: 2026-09-05
+  content_hash: 28c360b5b915dba7ea377c6a88b103f547fc0ecf38bf66ca6e6b42cce0b76c1f
 ---
 
 # nano-pdf

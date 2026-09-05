@@ -20,6 +20,14 @@ metadata:
           ],
       },
   }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/oracle/SKILL.md
+  ref: main
+  sha: 76b5208b11eebf2071ad5a363666467417ea5792
+  license: MIT
+  checked: 2026-09-05
+  content_hash: 903a053178a3d2e7786f2036c8e151c40052184b6355614bc0aefdcc965d245e
 ---
 
 # oracle — best use

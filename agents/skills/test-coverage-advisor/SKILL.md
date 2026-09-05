@@ -3,6 +3,13 @@ name: test-coverage-advisor
 description: Reviews test coverage and suggests missing test cases for error paths, edge cases, and business logic. Activates when users write tests or implement new features.
 allowed-tools: Read, Grep, Glob
 version: 1.0.0
+upstream:
+  repo: EmilLindfors/claude-marketplace
+  path: plugins/rust-testing/skills/test-coverage-advisor/SKILL.md
+  ref: main
+  sha: 4d5e1bdc49481fc70bc769bbe536c95757dfdd9c
+  checked: 2026-09-05
+  content_hash: a02375c639ace1d5eec6e00753e22bb975582c3d2098b0516cb9e0d70e4fe3e7
 ---
 
 # Test Coverage Advisor Skill

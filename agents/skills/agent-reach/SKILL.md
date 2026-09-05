@@ -15,6 +15,14 @@ description: >
 metadata:
   openclaw:
     homepage: https://github.com/Panniantong/Agent-Reach
+upstream:
+  repo: Panniantong/Agent-Reach
+  path: agent_reach/skill/SKILL.md
+  ref: main
+  sha: 3be2a64120968e34d3c25a9835f77a700fa20674
+  license: MIT
+  checked: 2026-09-05
+  content_hash: c90de05f89183824fb35daedaccd4337aa2693cf059a99fb8bbae003e857e848
 ---
 
 # Agent Reach — Usage Guide

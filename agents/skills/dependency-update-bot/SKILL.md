@@ -4,6 +4,14 @@ description: Scans your project for outdated npm, pip, Cargo, Go, or Ruby packag
 compatibility: [claude-code, gemini-cli, github-copilot]
 author: OpenDirectory
 version: 1.0.0
+upstream:
+  repo: Varnan-Tech/opendirectory
+  path: skills/dependency-update-bot/SKILL.md
+  ref: main
+  sha: cf4acb6323e2cac3a1ed66ffc65b142b77ce5019
+  license: MIT
+  checked: 2026-09-05
+  content_hash: a15eddeaad7513b752a9ff9ca97f101559465a7f6f377b2325159b15dd363e55
 ---
 
 # Dependency Update Bot

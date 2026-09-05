@@ -2,6 +2,14 @@
 name: bluebubbles
 description: Use when you need to send or manage iMessages via BlueBubbles (recommended iMessage integration). Calls go through the generic message tool with channel="bluebubbles".
 metadata: { "openclaw": { "emoji": "🫧", "requires": { "config": ["channels.bluebubbles"] } } }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/bluebubbles/SKILL.md
+  ref: main
+  sha: 9c4eab69cca597d6ff7a14e652ef069ac06e8b8f
+  license: MIT
+  checked: 2026-09-05
+  content_hash: 41a9218692a5158ffb5a415c6bcffeca7f863ce4db4127f6c0137ba958eb848a
 ---
 
 # BlueBubbles Actions

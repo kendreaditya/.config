@@ -20,6 +20,14 @@ metadata:
           ],
       },
   }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/model-usage/SKILL.md
+  ref: main
+  sha: 82a1741336eb5517c73ac9cc47056f84afdaccf2
+  license: MIT
+  checked: 2026-09-05
+  content_hash: dbdd6e603d279332790d7cbaf01ec84c51ece09cf1bbabead1b7e4651f26c8bb
 ---
 
 # Model usage

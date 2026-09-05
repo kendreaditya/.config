@@ -21,6 +21,13 @@ metadata:
           ],
       },
   }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/goplaces/SKILL.md
+  ref: main
+  sha: decbd611a0928625af9d3d6ea7325ed49da17347
+  checked: 2026-09-05
+  content_hash: 81139f4e645a6355e23d15f94ee6d6ef3bfce8eb4a5716dad298880e2b38e24b
 ---
 
 # goplaces

@@ -20,6 +20,14 @@ metadata:
           ],
       },
   }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/summarize/SKILL.md
+  ref: main
+  sha: 76b5208b11eebf2071ad5a363666467417ea5792
+  license: MIT
+  checked: 2026-09-05
+  content_hash: 3ec4a66d4f2756c15cf653a9f7b67d05631ac712078b5768945511db8ad7c7a6
 ---
 
 # Summarize

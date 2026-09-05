@@ -3,6 +3,13 @@ name: spotify-player
 description: Terminal Spotify playback/search via spogo (preferred) or spotify_player.
 homepage: https://www.spotify.com
 metadata: {"clawdbot":{"emoji":"🎵","requires":{"anyBins":["spogo","spotify_player"]},"install":[{"id":"brew","kind":"brew","formula":"spogo","tap":"steipete/tap","bins":["spogo"],"label":"Install spogo (brew)"},{"id":"brew","kind":"brew","formula":"spotify_player","bins":["spotify_player"],"label":"Install spotify_player (brew)"}]}}
+upstream:
+  repo: openclaw/openclaw
+  path: skills/spotify-player/SKILL.md
+  ref: main
+  sha: 246adaa1191438b9e9e178384a026b4c123782f1
+  checked: 2026-09-05
+  content_hash: 4a7a735fe86c25c51c589f1c59890b8ae8d83ed6663bef57e8b0252e4ab0b1fc
 ---
 
 # spogo / spotify_player

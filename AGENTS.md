@@ -76,23 +76,28 @@ Full detail: `agents/skills/dotconfig-branching/SKILL.md`.
 
 ```
 agents/
-  skills/            96 skills, harness-agnostic (SKILL.md is a de-facto standard)
+  skills/            harness-agnostic Agent Skills packages
   commands/          slash commands / prompts
   memory/            long-term notes (git-crypt encrypted)
   personas/          role prompts, one .md per agent type
   harness/
     claude/          settings.json, CLAUDE.md, output-styles/, mcp-servers.json
     codex/           AGENTS.md, agents/*.toml
-  link.sh            wires all of the above into ~/.claude and ~/.codex
+    pi/              AGENTS.md; Pi settings remain machine-local
+  link.sh            wires shared and harness-specific paths into place
 ```
 
-Shared dirs are symlinked into every harness; `harness/<name>/` only into that
-harness. Run `agents/link.sh` after changing the layout — it is idempotent and
+`agents/skills/` is canonical. It is linked to the cross-harness Agent Skills
+location at `~/.agents/skills`, which Pi discovers natively, as well as directly
+to Claude Code and Codex. `harness/<name>/` contains only harness-specific
+files. Run `agents/link.sh` after changing the layout — it is idempotent and
 refuses to overwrite real files. `--dry-run` previews.
 
-Two naming details worth knowing: Claude calls role prompts "agents", so
+Three naming details worth knowing: Claude calls role prompts "agents", so
 `~/.claude/agents` points at `agents/personas/`. Codex namespaces user skills, so
 they land at `~/.codex/skills/user` and its generated `.system/` dir survives.
+Pi reads shared skills from `~/.agents/skills` and receives only its global
+`AGENTS.md` from `agents/harness/pi/`; `~/.pi/agent/settings.json` stays local.
 
 ## Health checks
 
@@ -143,21 +148,26 @@ shortn input.md -t 8000
 
 The shared venv at `~/.config/config-venv/` is created by `setup-macos.sh`. Scripts that need it point their shebang directly at `~/.config/config-venv/bin/python3`. Dependencies live in `requirements.txt`.
 
-## Claude Code Config
+## Agent Harness Config
 
-`~/.config/agents/` stores Claude Code's behavioral files, version-controlled here and symlinked into `~/.claude/`. Shared dirs are symlinked in for every harness; `harness/claude/` only for Claude Code:
+`~/.config/agents/` stores shared behavior plus harness-specific configuration:
 
 | Path | Purpose |
 |------|---------|
+| `agents/skills/` | Canonical skills shared through `~/.agents/skills`, Claude Code, and Codex |
+| `agents/commands/` | Custom slash commands (e.g. `/gdrive-read`) |
+| `agents/personas/` | Role/persona prompts — one `.md` per agent type |
 | `agents/harness/claude/settings.json` | Claude Code preferences (plugins, voice, model) |
 | `agents/harness/claude/system-prompt.txt` | Global Claude personality/behavior overrides |
-| `agents/skills/` | Installed skills, shared with every harness |
-| `agents/commands/` | Custom slash commands (e.g. `/gdrive-read`), shared |
-| `agents/personas/` | Role/persona prompts — one `.md` per agent type, shared |
 | `agents/harness/claude/mcp-servers.json` | MCP server definitions (tracked source of truth) |
 | `agents/harness/claude/docs/` | Local Claude Code docs (generated, gitignored — run `sync-docs` to regenerate) |
+| `agents/harness/codex/AGENTS.md` | Global Codex instructions |
+| `agents/harness/pi/AGENTS.md` | Global Pi instructions; Pi settings stay machine-local |
 
-Symlinks: `~/.claude/{skills,commands,agents,settings.json}` → `~/.config/agents/{skills,commands,personas,harness/claude/settings.json}` (Claude calls role prompts "agents", hence `personas` → `~/.claude/agents`). Set up by `agents/link.sh`.
+`agents/link.sh` creates the harness links. In particular,
+`~/.agents/skills`, `~/.claude/skills`, and `~/.codex/skills/user` all resolve
+to `~/.config/agents/skills`; `~/.pi/agent/AGENTS.md` resolves to the Pi-specific
+instructions.
 
 `~/.claude.json` itself is **not** tracked — it mixes MCP config with mutable session state (OAuth tokens, per-project history, counters). `setup-macos.sh` re-registers servers from `mcp-servers.json` via `claude mcp add-json ... -s user` on every run.
 

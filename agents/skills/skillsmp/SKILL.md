@@ -53,3 +53,30 @@ Present results in a clean list including:
 - **GitHub URL**
 
 If multiple pages exist, mention how to fetch the next page using the `page` parameter.
+
+## Required: track anything you install
+
+Searching is only half the job. If the user installs a skill found here, you **must** record its
+provenance with the `upstream` skill before or immediately after copying it in. Marketplace
+results are by definition someone else's work, and the `githubUrl` above is exactly the pointer
+needed — so there is no excuse for landing an untracked copy.
+
+Without it, a later upstream fix cannot be pulled without clobbering local edits, and nobody can
+tell which lines were the original author's.
+
+```bash
+# 1. Find SKILL.md inside the repo — often NOT at the root
+gh api "repos/OWNER/REPO/git/trees/main?recursive=1" \
+  --jq '.tree[] | select(.path|test("SKILL.md$")) | .path'
+
+# 2. Pin the sha for that exact path
+gh api "repos/OWNER/REPO/commits" -X GET -f "path=PATH" -f "sha=main" -f per_page=1 \
+  --jq '.[0].sha'
+```
+
+Then add an `upstream:` block to the installed skill's frontmatter (`repo`, `path`, `ref`, `sha`,
+`license`, `checked`, `content_hash`). Never record the user's own repo as the upstream, and don't
+create frontmatter just to hold the block — see the `upstream` skill for the schema and the
+four-case sync rules.
+
+Afterwards `upstream.sh status` will report whether that skill has drifted from its source.

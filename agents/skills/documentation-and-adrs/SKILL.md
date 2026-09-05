@@ -1,6 +1,14 @@
 ---
 name: documentation-and-adrs
 description: Records decisions and documentation. Use when making architectural decisions, changing public APIs, shipping features, or when you need to record context that future engineers and agents will need to understand the codebase.
+upstream:
+  repo: addyosmani/agent-skills
+  path: skills/documentation-and-adrs/SKILL.md
+  ref: main
+  sha: a0eba71b5544c47c922cc55127bccec8b0f1e6ab
+  license: MIT
+  checked: 2026-09-05
+  content_hash: b867bb80fb681257c7625ae59a0dfd849b1fc0f0a2f0338e7923f38030df9793
 ---
 
 # Documentation and ADRs

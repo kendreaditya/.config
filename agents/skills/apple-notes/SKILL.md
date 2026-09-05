@@ -21,6 +21,14 @@ metadata:
           ],
       },
   }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/apple-notes/SKILL.md
+  ref: main
+  sha: 76b5208b11eebf2071ad5a363666467417ea5792
+  license: MIT
+  checked: 2026-09-05
+  content_hash: c07631bb6ec0dd136eaa86af86830954c296aa66ea7109c00731c098cd8d5b00
 ---
 
 # Apple Notes CLI

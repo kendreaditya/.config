@@ -3,6 +3,14 @@ name: tmux
 description: Remote-control tmux sessions for interactive CLIs by sending keystrokes and scraping pane output.
 metadata:
   { "openclaw": { "emoji": "🧵", "os": ["darwin", "linux"], "requires": { "bins": ["tmux"] } } }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/tmux/SKILL.md
+  ref: main
+  sha: 9cce40d123725a1cdd9b1624b0ca533d5b869211
+  license: MIT
+  checked: 2026-09-05
+  content_hash: 25f7d9ee550752298014a83f2aa402f8015f9c4c781d70ac75bf6b043c0113f8
 ---
 
 # tmux Session Control

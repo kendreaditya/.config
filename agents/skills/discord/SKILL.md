@@ -3,6 +3,14 @@ name: discord
 description: "Discord ops via the message tool (channel=discord)."
 metadata: { "openclaw": { "emoji": "🎮", "requires": { "config": ["channels.discord.token"] } } }
 allowed-tools: ["message"]
+upstream:
+  repo: openclaw/openclaw
+  path: skills/discord/SKILL.md
+  ref: main
+  sha: 9203a2fdb1d89dd1f335fc05c4b0369e74643e9a
+  license: MIT
+  checked: 2026-09-05
+  content_hash: 06554ae01f77c153db0a1feeb96f39b976289cb40e8843022406f8e59771f3aa
 ---
 
 # Discord (Via `message`)

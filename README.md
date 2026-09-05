@@ -31,10 +31,10 @@ The bootstrap auto-detects the platform, installs prereqs (Xcode CLT / git), clo
 - **Core CLIs** — neovim, tmux, fzf, ripgrep, gh, fastfetch, atuin, yq, yt-dlp
 - **Runtimes** — Node (via fnm), Python, Bun, Deno
 - **Apps** — VS Code, Chrome, Obsidian, Postman, Raycast/Ulauncher, Zoom, Tailscale
-- **Claude Code + Codex CLIs**, Oh My Zsh, npm globals, Python venv, vim-plug
+- **Claude Code, Codex, and Pi CLIs**, Oh My Zsh, npm globals, Python venv, vim-plug
 - **Fonts** from `assets/fonts/` → installed to the OS font directory
 - **System defaults** — dock/finder/sidebar (macOS), GNOME settings (Linux), PowerToys installed + PSReadLine/oh-my-posh profile configured (Windows)
-- **Symlinks** — scripts to `~/.local/bin`, agent config (`agents/`) to `~/.claude/` and `~/.codex/`
+- **Symlinks** — scripts to `~/.local/bin`; shared skills to `~/.agents/skills`, `~/.claude/skills`, and `~/.codex/skills/user`; harness-specific config to `~/.claude/`, `~/.codex/`, and `~/.pi/agent/`
 
 ## Working on this repo
 
@@ -88,3 +88,16 @@ rebasing; it rebuilds the device branch on main and refuses to adopt unless the
 resulting tree byte-matches the current one.
 
 Full details: `agents/skills/dotconfig-branching/SKILL.md`.
+
+## Shared agent skills
+
+`agents/skills/` is the canonical, Git-tracked collection. `agents/link.sh`
+exposes that one directory to each harness rather than maintaining copies:
+
+- Agent Skills standard / Pi: `~/.agents/skills`
+- Claude Code: `~/.claude/skills`
+- Codex: `~/.codex/skills/user`
+
+Pi also gets its global context from `agents/harness/pi/AGENTS.md` via
+`~/.pi/agent/AGENTS.md`. Harness settings that can contain provider, extension,
+or machine-local state remain untracked and are not linked.

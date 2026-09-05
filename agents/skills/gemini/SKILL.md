@@ -20,6 +20,14 @@ metadata:
           ],
       },
   }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/gemini/SKILL.md
+  ref: main
+  sha: 76b5208b11eebf2071ad5a363666467417ea5792
+  license: MIT
+  checked: 2026-09-05
+  content_hash: 29205943f8adeb77ab24d4f473250c8970ee4d77f139166f119b6071c008318b
 ---
 
 # Gemini CLI

@@ -3,6 +3,14 @@ name: dead-code
 description: Find unused functions and dead code in the codebase
 allowed-tools: [Bash]
 keywords: [dead code, unused, cleanup, refactor, unreachable]
+upstream:
+  repo: parcadei/continuous-claude-v3
+  path: .claude/skills/dead-code/SKILL.md
+  ref: main
+  sha: 26d21a9fdc8c611bb2f9f5918a279ce119e0928a
+  license: MIT
+  checked: 2026-09-05
+  content_hash: 87ebece85c69826ad4525d8a4b8948550d6254ce2d16d21c83b0a5987a87f560
 ---
 
 # Dead Code Detection

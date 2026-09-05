@@ -26,6 +26,14 @@ metadata:
           ],
       },
   }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/xurl/SKILL.md
+  ref: main
+  sha: 04e103d10ef7601b05fe1e253a1576d093dfdcf2
+  license: MIT
+  checked: 2026-09-05
+  content_hash: 111aab4ea6b1c0b903e2374b5d988c48939c892cff68f9a7312318d2d69c2c03
 ---
 
 # xurl — Agent Skill Reference

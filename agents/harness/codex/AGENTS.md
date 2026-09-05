@@ -2,11 +2,14 @@
 
 ## Local Documentation
 
-Full Codex docs are available at `~/.config/Codex/docs/` (65 Markdown files, refreshed via `sync-docs`).
+Vendored Claude Code documentation is available at `~/.config/agents/docs/`
+(refreshed via `sync-docs`). Use it only for Claude Code questions; for Codex
+behavior, inspect the installed Codex CLI help and current configuration rather
+than treating Claude-specific documentation as authoritative.
 
-When asked about Codex features, settings, hooks, MCP, skills, or any Codex behavior — read the relevant file from `~/.config/Codex/docs/` first rather than guessing. Key files:
+Relevant Claude Code reference files include:
 
-- `overview.md` — what Codex is
+- `overview.md` — what Claude Code is
 - `settings.md` — all settings options
 - `hooks.md` / `hooks-guide.md` — hook system
 - `skills.md` — skills system
@@ -17,12 +20,15 @@ When asked about Codex features, settings, hooks, MCP, skills, or any Codex beha
 
 ## Agents
 
-Custom agent personas live in `~/.config/Codex/agents/` (symlinked to `~/.Codex/agents/`). Each `.md` file defines a role-specific behavior.
+Custom agent definitions live in `~/.config/agents/harness/codex/agents/`
+(symlinked to `~/.codex/agents/`). Shared persona source files live in
+`~/.config/agents/personas/`.
 
 ## Skills & Commands
 
-- Skills: `~/.Codex/skills/` → `~/.config/Codex/skills/`
-- Commands: `~/.Codex/commands/` → `~/.config/Codex/commands/`
+- Skills: `~/.codex/skills/user/` → `~/.config/agents/skills/`
+- Prompts: `~/.codex/prompts/` → `~/.config/agents/commands/`
+- Cross-harness discovery: `~/.agents/skills/` → `~/.config/agents/skills/`
 
 ## Python Environment
 

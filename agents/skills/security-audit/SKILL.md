@@ -4,6 +4,14 @@ description: >
   Comprehensive security scanning and vulnerability detection. Includes input validation, path traversal prevention, CVE detection, and secure coding pattern enforcement.
   Use when: authentication implementation, authorization logic, payment processing, user data handling, API endpoint creation, file upload handling, database queries, external API integration.
   Skip when: read-only operations on public data, internal development tooling, static documentation, styling changes.
+upstream:
+  repo: ruvnet/claude-flow
+  path: .agents/skills/security-audit/SKILL.md
+  ref: main
+  sha: a0225a2765d205e63a45e4ee23c6662d8ea2ffd1
+  license: MIT
+  checked: 2026-09-05
+  content_hash: 5337a5c98d88ca7b574d921f91807008cb93fb0a1e1e662dad70e2e58266b878
 ---
 
 # Security Audit Skill

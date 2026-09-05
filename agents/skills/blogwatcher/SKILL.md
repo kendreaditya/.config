@@ -20,6 +20,14 @@ metadata:
           ],
       },
   }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/blogwatcher/SKILL.md
+  ref: main
+  sha: 76b5208b11eebf2071ad5a363666467417ea5792
+  license: MIT
+  checked: 2026-09-05
+  content_hash: 33011ee6e0c3202183772ee496d3d16b7388568c2d693395a072b081b9b9ff0e
 ---
 
 # blogwatcher

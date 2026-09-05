@@ -5,6 +5,14 @@ metadata:
   {
     "openclaw": { "emoji": "🧩", "requires": { "anyBins": ["claude", "codex", "opencode", "pi"] } },
   }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/coding-agent/SKILL.md
+  ref: main
+  sha: 76b5208b11eebf2071ad5a363666467417ea5792
+  license: MIT
+  checked: 2026-09-05
+  content_hash: 1ac51eb3ada826c6237db0cbac9636a559bf01132372586cf5bb097677184d22
 ---
 
 # Coding Agent (bash-first)

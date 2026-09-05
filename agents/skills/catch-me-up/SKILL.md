@@ -6,8 +6,8 @@ upstream:
   file: explain-diff-html.md
   sha: 126e7fe9eecaafadfe1ac8bb183d135812b608f2
   license: none-stated
-  checked: 2026-09-03
-  content_hash: d81ac148271131c3a9931b71d5f3108a7570519d56c21d2e16d21a5b96017e7f
+  checked: 2026-09-05
+  content_hash: 5bafcb8a6550b5a147dee443d0cbfc6c1c409b4775510730da752864441d26f7
 ---
 
 # Catch Me Up

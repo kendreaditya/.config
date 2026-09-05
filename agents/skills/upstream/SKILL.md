@@ -1,6 +1,6 @@
 ---
 name: upstream
-description: "Track vendored Claude Code components against their source and re-sync them without losing local edits. Use when the user asks whether a vendored skill/agent/command is out of date, wants to pull upstream changes, asks what they changed in a borrowed component, or is about to copy someone else's skill/agent/plugin file into their config. Triggers: 'upstream', 'is this out of date', 'sync my skills', 'pull upstream changes', 'what did I change in this skill', 'vendor this'."
+description: "Track vendored agent components against their source and re-sync them without losing local edits. Use when the user asks whether a vendored skill/agent/command is out of date, wants to pull upstream changes, asks what they changed in a borrowed component, audits missing provenance, or is about to copy someone else's skill/agent/plugin file into their config. Triggers: 'upstream', 'is this out of date', 'sync my skills', 'pull upstream changes', 'what did I change in this skill', 'vendor this'."
 ---
 
 # upstream
@@ -44,8 +44,28 @@ gh api "repos/OWNER/REPO/git/trees/main?recursive=1" \
   --jq '.tree[] | select(.path|test("SKILL.md$")) | .path'
 ```
 
-This block is the only registry. `upstream.sh` finds tracked components by grepping
-for it, so there is no manifest to drift out of sync.
+This block is the only registry. `upstream.sh` parses frontmatter rather than
+matching examples in a document body, so there is no separate manifest to drift
+out of sync. Run `upstream.sh untracked` to list skill files that still need a
+provenance decision.
+
+### Auditing missing provenance
+
+An absent `upstream:` block means either **original work** or **not yet audited**.
+Do not turn a plausible search result into provenance. Add metadata only when the
+lineage is supported by evidence such as:
+
+- an exact match against a current or historical upstream blob;
+- an existing source URL plus a clearly recognizable locally edited base; or
+- repository history that records where the component was copied from.
+
+Search GitHub by a distinctive sentence, inspect the candidate repository's tree,
+and compare historical versions when the current file has moved. Pin the commit
+the local copy was based on—not merely today's tip—so three-way merge has the
+right base. Never use this dotfiles repository itself as an upstream.
+
+Files without valid Agent Skills frontmatter should be repaired or retired
+separately; do not add frontmatter solely to carry provenance.
 
 ### Gists
 
@@ -85,6 +105,7 @@ gh api "gists/<id>" --jq '{v: .history[0].version, files: (.files|keys)}'
 S=~/.config/agents/skills/upstream/scripts/upstream.sh
 
 $S list                    # every tracked component + clean/edited
+$S untracked               # skills with no upstream block (audit queue)
 $S status                  # check upstream for new commits
 $S diff  <abs-path>        # what have I changed vs my pinned base
 $S pull  <abs-path>        # sync one
@@ -112,7 +133,7 @@ so you can see what each side actually did. Resolve, then re-run `status`.
 Any file-based component. `upstream.sh` scans `skills/`, `agents/`, `commands/`,
 `output-styles/`, `hooks/`, `rules/`, and `themes/`.
 
-Claude Code's authorable component types, for reference:
+Common authorable component types, for reference (support varies by harness):
 
 | Component | Lives in | What it is |
 |---|---|---|
@@ -129,7 +150,7 @@ Claude Code's authorable component types, for reference:
 | Statusline | `settings.json` | Custom status line command |
 | Keybindings | `keybindings.json` | Key remaps and chords |
 | Workflows | `workflows/*.js` | Scripted multi-agent orchestration |
-| Memory | `CLAUDE.md`, `memory/` | Persistent context |
+| Memory | `AGENTS.md`, `CLAUDE.md`, `memory/` | Persistent context |
 | Plugins | `plugins/` | Bundles of all the above, versioned |
 
 Plugins are the packaged alternative to vendoring: they auto-update, but you take
@@ -138,9 +159,9 @@ every component in the bundle. Vendor when you want three skills out of twenty.
 ## Pitfalls
 
 - **Needs `gh` authenticated.** Private repos work if your token can read them.
-- **Scans `$CLAUDE_CONFIG_DIR`, defaulting to `~/.config/agents`.** Point it elsewhere
-  with that env var. If the directory is missing it now says so instead of reporting an
-  empty collection.
+- **Scans `$AGENT_CONFIG_DIR`, defaulting to `~/.config/agents`.** The legacy
+  `$CLAUDE_CONFIG_DIR` override remains supported. If the directory is missing it
+  reports that instead of silently showing an empty collection.
 - **Force-pushed or rebased base.** If the pinned sha is gone the base fetch fails;
   the tool refuses to merge and tells you to `diff` manually rather than guessing.
 - **Line-based merge.** A wholesale upstream restructure conflicts loudly. Correct —

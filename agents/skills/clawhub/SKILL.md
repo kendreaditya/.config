@@ -18,6 +18,14 @@ metadata:
           ],
       },
   }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/clawhub/SKILL.md
+  ref: main
+  sha: 76b5208b11eebf2071ad5a363666467417ea5792
+  license: MIT
+  checked: 2026-09-05
+  content_hash: 2bae787841a3b74b8f8fbe50d14e91c4b037f27006624b95307d45dd20b7dde2
 ---
 
 # ClawHub CLI

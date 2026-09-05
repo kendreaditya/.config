@@ -8,7 +8,8 @@
 #   agents/harness/<name>/...                per-harness config (settings, prompts)
 #
 # Shared content is symlinked into every harness; harness/<name>/ only into
-# that harness. Idempotent — safe to re-run. Currently wires claude + codex.
+# that harness. Idempotent — safe to re-run. Currently wires the shared Agent
+# Skills location plus Claude Code, Codex, and Pi.
 #
 # Creating a SymbolicLink on Windows normally requires Developer Mode or an
 # elevated (Administrator) shell — setup-windows.ps1 already requires admin,
@@ -58,6 +59,14 @@ function Link-Path($Target, $LinkPath) {
     Write-Log "linked   $LinkPath -> $Target"
 }
 
+# ---------------------------------------------------------- shared agent skills
+# Pi discovers ~/.agents/skills natively. Other Agent Skills-compatible tools
+# can use it too, so point it at the same canonical collection instead of
+# maintaining a copied directory that can drift.
+Write-Output "agent skills:"
+$SharedAgentsDir = "$HOME\.agents"
+Link-Path "$Agents\skills" "$SharedAgentsDir\skills"
+
 # ---------------------------------------------------------------- claude code
 Write-Output "claude:"
 $ClaudeDir = "$HOME\.claude"
@@ -80,8 +89,16 @@ Link-Path "$Agents\memory"                    "$CodexDir\memory"
 Link-Path "$Agents\harness\codex\AGENTS.md"   "$CodexDir\AGENTS.md"
 Link-Path "$Agents\harness\codex\agents"      "$CodexDir\agents"
 
-# NOTE: ~/.codex/config.toml and ~/.claude.json are intentionally NOT linked —
-# both mix MCP config with mutable session state. Same reasoning as link.sh.
+# ------------------------------------------------------------------------- pi
+# Pi discovers shared skills through ~/.agents/skills above. Keep settings.json
+# machine-local because it can contain provider and extension configuration.
+Write-Output "pi:"
+$PiDir = "$HOME\.pi\agent"
+Link-Path "$Agents\harness\pi\AGENTS.md" "$PiDir\AGENTS.md"
+
+# NOTE: ~/.codex/config.toml, ~/.claude.json, and ~/.pi/agent/settings.json are
+# intentionally NOT linked because they mix configuration with mutable or
+# machine-local state. Same reasoning as link.sh.
 
 Write-Output ""
 Write-Output "done. re-run anytime; nothing is destructive to real files."

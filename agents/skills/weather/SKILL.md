@@ -3,6 +3,14 @@ name: weather
 description: "Get current weather and forecasts via wttr.in or Open-Meteo. Use when: user asks about weather, temperature, or forecasts for any location. NOT for: historical weather data, severe weather alerts, or detailed meteorological analysis. No API key needed."
 homepage: https://wttr.in/:help
 metadata: { "openclaw": { "emoji": "☔", "requires": { "bins": ["curl"] } } }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/weather/SKILL.md
+  ref: main
+  sha: 04e103d10ef7601b05fe1e253a1576d093dfdcf2
+  license: MIT
+  checked: 2026-09-05
+  content_hash: 3d8b98c457ca55f34bd0b2932888f5c048291d979cff9b3c6b4d0ed6281e4c94
 ---
 
 # Weather Skill

@@ -9,6 +9,14 @@ metadata:
     requires:
       bins: ["td"]
       env: ["TODOIST_API_TOKEN"]
+upstream:
+  repo: leaofelipe/todoist-cli-skill
+  path: SKILL.md
+  ref: main
+  sha: e92ddb2fb295c47b0b94b41aab944b38ff239b2e
+  license: MIT-0
+  checked: 2026-09-05
+  content_hash: e0b216ae6406e39f0857f812864b4edfde8f17181a83b0d995b89c0b3add7a63
 ---
 
 # Todoist CLI (`td`)

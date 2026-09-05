@@ -4,6 +4,14 @@ description: "Fetch GitHub issues, spawn sub-agents to implement fixes and open 
 user-invocable: true
 metadata:
   { "openclaw": { "requires": { "bins": ["curl", "git", "gh"] }, "primaryEnv": "GH_TOKEN" } }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/gh-issues/SKILL.md
+  ref: main
+  sha: 767109e7d589b267dc93cb778b0dd03657e817a0
+  license: MIT
+  checked: 2026-09-05
+  content_hash: 9cfc6732901455deeec8138df6b78bf5facd758b57e575f34bdc784bfac10c58
 ---
 
 # gh-issues — Auto-fix GitHub Issues with Parallel Sub-agents

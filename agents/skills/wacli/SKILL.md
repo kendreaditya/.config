@@ -27,6 +27,14 @@ metadata:
           ],
       },
   }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/wacli/SKILL.md
+  ref: main
+  sha: 76b5208b11eebf2071ad5a363666467417ea5792
+  license: MIT
+  checked: 2026-09-05
+  content_hash: e96ce8a145db72ceb49012d20570a0cff921173f9518676d7fe1472804ffeb9c
 ---
 
 # wacli

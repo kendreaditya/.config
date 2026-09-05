@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# upstream — track and re-sync vendored Claude Code components against their source.
+# upstream — track and re-sync vendored agent components against their source.
 #
 # Reads an `upstream:` block from a component's frontmatter, compares the pinned
 # sha to the current upstream sha, and three-way merges when both sides moved.
@@ -8,13 +8,14 @@
 #
 # Usage:
 #   upstream.sh list                 # every tracked component and its state
+#   upstream.sh untracked            # skills needing a provenance decision
 #   upstream.sh status [path]        # check upstream for new commits
 #   upstream.sh diff <path>          # what have I changed vs my pinned base
 #   upstream.sh pull <path>          # sync one component
 #   upstream.sh pull --all           # sync everything that moved
 set -uo pipefail
 
-ROOT="${CLAUDE_CONFIG_DIR:-$HOME/.config/agents}"
+ROOT="${AGENT_CONFIG_DIR:-${CLAUDE_CONFIG_DIR:-$HOME/.config/agents}}"
 
 die()  { printf 'upstream: %s\n' "$1" >&2; exit 1; }
 warn() { printf 'upstream: %s\n' "$1" >&2; }
@@ -72,19 +73,22 @@ norm() { # strip the upstream: block; normalizes trailing newline as a side effe
 body_hash() { norm "$1" | hash_stream; }
 
 tracked() {
-  local out
-  out=$(grep -rl --include='*.md' --include='*.json' '^upstream:' \
-    "$ROOT/skills" "$ROOT/agents" "$ROOT/commands" "$ROOT/output-styles" \
-    "$ROOT/hooks" "$ROOT/rules" "$ROOT/themes" 2>/dev/null | sort)
-  # A missing ROOT and a genuinely empty collection used to look identical: grep
-  # exits 2, sort swallows it, and the caller prints a bare header and exits 0.
-  if [ -z "$out" ]; then
-    [ -d "$ROOT/skills" ] \
-      || warn "no such directory: $ROOT/skills (set CLAUDE_CONFIG_DIR?)"
-  fi
-  printf '%s' "$out"
-  [ -n "$out" ] && echo
-  return 0
+  local f
+  [ -d "$ROOT/skills" ] \
+    || { warn "no such directory: $ROOT/skills (set AGENT_CONFIG_DIR?)"; return 0; }
+
+  # Parse candidate files through fm_get. A plain grep also matches the example
+  # `upstream:` blocks in this skill's own body and incorrectly reports them as
+  # tracked components with an unknown source.
+  while IFS= read -r f; do
+    if [ -n "$(fm_get "$f" repo)" ] || [ -n "$(fm_get "$f" gist)" ]; then
+      printf '%s\n' "$f"
+    fi
+  done < <(
+    for dir in skills agents personas commands output-styles hooks rules themes; do
+      [ -d "$ROOT/$dir" ] && find "$ROOT/$dir" -type f \( -name '*.md' -o -name '*.json' \)
+    done | sort -u
+  )
 }
 
 # ---------- github -----------------------------------------------------------
@@ -155,6 +159,19 @@ cmd_list() {
     n="${f#$ROOT/}"
     printf '%-34s %-30s %s\n' "$n" "$(src_label "$f")" "$(local_state "$f")"
   done < <(tracked)
+}
+
+cmd_untracked() {
+  local f n
+  [ -d "$ROOT/skills" ] \
+    || { warn "no such directory: $ROOT/skills (set AGENT_CONFIG_DIR?)"; return 0; }
+  printf '%s\n' 'SKILLS WITHOUT VERIFIED UPSTREAM'
+  while IFS= read -r f; do
+    [ -n "$(fm_get "$f" repo)" ] && continue
+    [ -n "$(fm_get "$f" gist)" ] && continue
+    n="${f#$ROOT/}"
+    printf '%s\n' "$n"
+  done < <(find "$ROOT/skills" -type f -name SKILL.md | sort)
 }
 
 local_state() { # edited | clean | unknown
@@ -301,8 +318,9 @@ stamp() { # file sha [pristine_hash]
 }
 
 case "${1:-list}" in
-  list)   cmd_list ;;
-  status) shift; cmd_status "$@" ;;
+  list)      cmd_list ;;
+  untracked) cmd_untracked ;;
+  status)    shift; cmd_status "$@" ;;
   diff)   shift; [ $# -eq 1 ] || die "usage: diff <path>"; cmd_diff "$1" ;;
   pull)
     shift
@@ -311,5 +329,5 @@ case "${1:-list}" in
     else
       [ $# -eq 1 ] || die "usage: pull <path> | pull --all"; cmd_pull "$1"
     fi ;;
-  *) die "unknown command: $1 (list|status|diff|pull)" ;;
+  *) die "unknown command: $1 (list|untracked|status|diff|pull)" ;;
 esac

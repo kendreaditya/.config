@@ -21,6 +21,14 @@ metadata:
           ],
       },
   }
+upstream:
+  repo: openclaw/openclaw
+  path: skills/peekaboo/SKILL.md
+  ref: main
+  sha: 76b5208b11eebf2071ad5a363666467417ea5792
+  license: MIT
+  checked: 2026-09-05
+  content_hash: bb06f126ec6c0d2dd6b1a8eb0affe60d6389b95af2ffc91fd9cc937d5c9b9c44
 ---
 
 # Peekaboo

@@ -1,6 +1,13 @@
 ---
 name: skill-creator
 description: Create, edit, improve, or audit AgentSkills. Use when creating a new skill from scratch or when asked to improve, review, audit, tidy up, or clean up an existing skill or SKILL.md file. Also use when editing or restructuring a skill directory (moving files to references/ or scripts/, removing stale content, validating against the AgentSkills spec). Triggers on phrases like "create a skill", "author a skill", "tidy up a skill", "improve this skill", "review the skill", "clean up the skill", "audit the skill".
+upstream:
+  repo: openai/skills
+  path: skills/.system/skill-creator/SKILL.md
+  ref: main
+  sha: 4ab6e0fd99c6667163bc34173e3ed3a3fed75ebc
+  checked: 2026-09-05
+  content_hash: a17383bfb1448637ac1f757ad891ddb9676fa30b0eff620200f0e1cbc0cc0d50
 ---
 
 # Skill Creator
@@ -290,6 +297,50 @@ The script:
 - Optionally adds example files when `--examples` is set
 
 After initialization, customize the SKILL.md and add resources as needed. If you used `--examples`, replace or delete placeholder files.
+
+#### Required: record provenance for any skill you did not write
+
+If the skill is copied or adapted from somewhere else — a GitHub repo, a marketplace, another
+person's config, a `find-skills` result — you **must** record where it came from before editing
+it. Use the `upstream` skill.
+
+This is not optional bookkeeping. Without it, the next person to touch the file cannot tell your
+edits from the original author's, and there is no way to pull a later upstream fix without
+clobbering local changes.
+
+Add an `upstream:` block to the frontmatter:
+
+```yaml
+upstream:
+  repo: owner/repo
+  path: path/to/SKILL.md      # inside the repo — often NOT the root
+  ref: main
+  sha: <commit sha you copied from>
+  license: MIT                # omit the line entirely if the repo has no license
+  checked: <YYYY-MM-DD>
+  content_hash: <sha256 of pristine upstream at that sha>
+```
+
+Find `path` with the trees API rather than guessing — a wrong path fetches zero bytes and looks
+identical to "not vendored":
+
+```bash
+gh api "repos/OWNER/REPO/git/trees/main?recursive=1" \
+  --jq '.tree[] | select(.path|test("SKILL.md$")) | .path'
+```
+
+Two rules that are easy to get wrong:
+
+- **Never record your own repo as the upstream.** A skill cannot be its own source; a later
+  `pull` would merge the file into itself.
+- **Do not add frontmatter solely to hold this block.** If the file has no frontmatter at all,
+  leave it untracked — frontmatter carrying `upstream:` but no `name:`/`description:` can break
+  the skill loader.
+
+If you wrote the skill yourself, add nothing. An absent `upstream:` block means "original work,"
+so recording a guess destroys that signal.
+
+See the `upstream` skill for the full schema and the sync workflow.
 
 ### Step 4: Edit the Skill
 
