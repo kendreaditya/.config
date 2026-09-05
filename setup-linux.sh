@@ -68,6 +68,69 @@ fi
 # Global npm CLIs (yarn removed by request — pnpm covers the same ground)
 npm install -g wrangler vercel pnpm typescript tailwindcss eslint
 
+# --- Go-based CLIs that macOS gets from Homebrew taps -------------------------
+# gogcli, wacli and assemblyai have no apt package, but all three publish
+# linux_amd64/linux_arm64 tarballs upstream, so the tap installs in
+# setup-macos.sh map cleanly onto release downloads here. Without these, three
+# skills (gog, wacli/memex, assemblyai) install their config and then fail at
+# runtime with "command not found".
+#
+# Two traps worth knowing:
+#   1. gogcli's binary is named `gog`, NOT `gogcli` — the Homebrew formula is
+#      `gogcli` but it links `bin/gog`, and every agents/skills/gog invocation
+#      says `gog`. Installing it as `gogcli` downloads fine and satisfies
+#      nothing.
+#   2. Each tarball has a different internal layout (gogcli: ./gog at the root;
+#      wacli and assemblyai: binary alongside LICENSE/README), so extract the
+#      known binary name by path rather than assuming position.
+#
+# Pinned to the versions verified against upstream on 2026-09-04. `latest` would
+# silently change what installs; bump these deliberately.
+GO_ARCH="$(dpkg --print-architecture)"   # amd64 | arm64 — matches upstream naming
+install_release_bin() {
+  # $1 owner/repo  $2 tag version  $3 archive basename  $4 binary name inside
+  local repo="$1" ver="$2" base="$3" bin="$4" tmp
+  if command -v "$bin" &>/dev/null; then
+    echo "  ✓ $bin already installed"
+    return 0
+  fi
+  tmp="$(mktemp -d)"
+  if curl -fsSL "https://github.com/$repo/releases/download/v$ver/${base}_${ver}_linux_${GO_ARCH}.tar.gz" \
+       -o "$tmp/dl.tar.gz"; then
+    # --strip-components isn't safe here: gogcli nests under ./ while the others
+    # don't. Extract by name and take whatever path it lands at.
+    if tar -xzf "$tmp/dl.tar.gz" -C "$tmp" 2>/dev/null; then
+      local found
+      found="$(find "$tmp" -type f -name "$bin" -perm -u+x | head -1)"
+      if [ -n "$found" ]; then
+        sudo install -m 755 "$found" "/usr/local/bin/$bin" && echo "  ✓ $bin installed"
+      else
+        echo "  ✗ $bin: no executable named '$bin' in the tarball"
+      fi
+    else
+      echo "  ✗ $bin: tarball failed to extract (blocked download or bad asset?)"
+    fi
+  else
+    echo "  ✗ $bin: download failed for linux_$GO_ARCH — check the pinned version"
+  fi
+  rm -rf "$tmp"
+}
+echo "Installing Go-based CLIs (gog, wacli, assemblyai)..."
+install_release_bin steipete/gogcli          0.39.0 gogcli     gog
+install_release_bin OpenClaw/wacli           0.17.1 wacli      wacli
+install_release_bin AssemblyAI/assemblyai-cli 1.18.1 assemblyai assemblyai
+
+# Install the plugins declared in nvim/plug.vim. The plug.vim download above only
+# puts the plugin MANAGER in place — without this the plugin dirs stay empty, so
+# nvim starts with none of its configured plugins. --sync is required: without it
+# PlugInstall returns before its git jobs finish, so +qa exits mid-clone and
+# leaves them empty or half-cloned. Idempotent — a no-op re-run is ~0.4s. Runs
+# after node so plugins with build steps can find their toolchains.
+if command -v nvim &>/dev/null; then
+  echo "Installing neovim plugins..."
+  nvim --headless +'PlugInstall --sync' +qa
+fi
+
 # Bun removed by request: its only consumer was gstack, also removed.
 # To restore: curl -fsSL https://bun.sh/install | bash
 
@@ -242,7 +305,7 @@ command -v google-chrome &>/dev/null && xdg-settings set default-web-browser goo
 # Verify critical tools are available
 echo ""
 echo "Verifying installation..."
-for cmd in node python3 nvim tmux gh claude fastfetch uv fnm jq; do
+for cmd in node python3 nvim tmux gh claude fastfetch uv fnm jq gog wacli assemblyai; do
   if command -v "$cmd" &>/dev/null; then
     echo "  ✓ $cmd"
   else
