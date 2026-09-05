@@ -160,7 +160,7 @@ The shared venv at `~/.config/config-venv/` is created by `setup-macos.sh`. Scri
 | `agents/harness/claude/settings.json` | Claude Code preferences (plugins, voice, model) |
 | `agents/harness/claude/system-prompt.txt` | Global Claude personality/behavior overrides |
 | `agents/harness/claude/mcp-servers.json` | MCP server definitions (tracked source of truth) |
-| `agents/harness/claude/docs/` | Local Claude Code docs (generated, gitignored — run `sync-docs` to regenerate) |
+| `agents/docs/` | Local Claude Code docs (generated, gitignored — run `sync-docs` to regenerate) |
 | `agents/harness/codex/AGENTS.md` | Global Codex instructions |
 | `agents/harness/pi/AGENTS.md` | Global Pi instructions; Pi settings stay machine-local |
 
